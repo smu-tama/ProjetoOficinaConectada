@@ -9,6 +9,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import streamlit as st
+from streamlit_back_camera_input import back_camera_input
 
 # Configuração da Página
 st.set_page_config(
@@ -249,7 +250,7 @@ elif st.session_state.perfil_logado == "Mecânico (Oficina)":
 st.sidebar.markdown("---")
 
 # ---------------------------------------------------------
-# FUNÇÃO AUXILIAR DE BUSCA, CONSULTA E LEITOR DE QR CODE NATIVO
+# FUNÇÃO AUXILIAR DE BUSCA, CONSULTA E LEITOR DE QR CODE TRASEIRO
 # ---------------------------------------------------------
 def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos"):
     st.subheader(titulo)
@@ -258,7 +259,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
         st.info("Nenhuma máquina cadastrada no sistema.")
         return
 
-    tab_busca_txt, tab_scan_qr = st.tabs(["🔍 Busca por Texto", "📷 Leitor de QR Code (Câmera Nativa)"])
+    tab_busca_txt, tab_scan_qr = st.tabs(["🔍 Busca por Texto", "📷 Leitor de QR Code (Câmera Traseira)"])
 
     with tab_busca_txt:
         termo_busca = st.text_input(
@@ -292,11 +293,11 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
         )
 
     with tab_scan_qr:
-        st.markdown("### 📷 Capturar QR Code com a Câmera do Celular")
-        st.info("Clique em 'Tirar foto', aponte para a etiqueta impressa da máquina e o sistema identificará o código automaticamente.")
+        st.markdown("### 📷 Scanner com Câmera Traseira Padrão")
+        st.info("Aponte a câmera traseira para o QR Code da máquina e **toque na tela** para capturar a imagem.")
 
-        # Câmera nativa robusta para mobile e desktop
-        foto_capturada = st.camera_input("Tirar Foto da Etiqueta da Máquina", key=f"cam_{titulo}")
+        # Componente otimizado que inicia diretamente com a câmera traseira (environment)
+        foto_capturada = back_camera_input(key=f"back_cam_{titulo}")
 
         if foto_capturada is not None:
             # Converte a imagem capturada para processamento OpenCV
@@ -349,7 +350,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
                 else:
                     st.warning(f"⚠️ O código lido ('{codigo_lido}') não corresponde a nenhuma máquina cadastrada no sistema.")
             else:
-                st.error("❌ Nenhum QR Code nítido foi detectado na foto. Aproxime mais a câmera da etiqueta e tente novamente.")
+                st.error("❌ Nenhum QR Code nítido foi detectado. Aproxime mais a etiqueta da câmera e tire outra foto.")
 
     st.markdown("---")
     st.markdown("### 📋 Consulta Detalhada por ID")

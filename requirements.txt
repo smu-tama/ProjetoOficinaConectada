@@ -2,3 +2,4 @@ streamlit
 pandas
 qrcode[pil]
 opencv-python-headless
+streamlit-back-camera-input
