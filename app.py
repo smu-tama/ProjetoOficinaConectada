@@ -185,6 +185,12 @@ if st.session_state.usuario_logado is None:
     st.stop()
 else:
     st.sidebar.success(f"Conectado: **{st.session_state.usuario_logado}**\n\nPerfil: *{st.session_state.perfil_logado}*")
+    
+    # BOTÃO DE SINCRONIZAÇÃO EM TEMPO REAL SEM PERDER O LOGIN
+    if st.sidebar.button("🔄 Sincronizar / Atualizar Informações"):
+        st.success("Dados atualizados com sucesso!")
+        st.rerun()
+
     if st.sidebar.button("Sair (Logout)"):
         st.session_state.usuario_logado = None
         st.session_state.perfil_logado = None
