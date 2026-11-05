@@ -5,9 +5,10 @@ import io
 import json
 import sqlite3
 import qrcode
+import cv2
+import numpy as np
 import pandas as pd
 import streamlit as st
-from streamlit_qrcode_scanner import qrcode_scanner
 
 # Configuração da Página
 st.set_page_config(
@@ -186,7 +187,6 @@ if st.session_state.usuario_logado is None:
 else:
     st.sidebar.success(f"Conectado: **{st.session_state.usuario_logado}**\n\nPerfil: *{st.session_state.perfil_logado}*")
     
-    # BOTÃO DE SINCRONIZAÇÃO EM TEMPO REAL SEM PERDER O LOGIN
     if st.sidebar.button("🔄 Sincronizar / Atualizar Informações"):
         st.success("Dados atualizados com sucesso!")
         st.rerun()
@@ -249,7 +249,7 @@ elif st.session_state.perfil_logado == "Mecânico (Oficina)":
 st.sidebar.markdown("---")
 
 # ---------------------------------------------------------
-# FUNÇÃO AUXILIAR DE BUSCA, CONSULTA E LEITOR DE QR CODE
+# FUNÇÃO AUXILIAR DE BUSCA, CONSULTA E LEITOR DE QR CODE NATIVO
 # ---------------------------------------------------------
 def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos"):
     st.subheader(titulo)
@@ -258,7 +258,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
         st.info("Nenhuma máquina cadastrada no sistema.")
         return
 
-    tab_busca_txt, tab_scan_qr = st.tabs(["🔍 Busca por Texto", "📷 Leitor de QR Code (Câmera Real)"])
+    tab_busca_txt, tab_scan_qr = st.tabs(["🔍 Busca por Texto", "📷 Leitor de QR Code (Câmera Nativa)"])
 
     with tab_busca_txt:
         termo_busca = st.text_input(
@@ -292,51 +292,64 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
         )
 
     with tab_scan_qr:
-        st.markdown("### 📷 Scanner de QR Code com a Câmera do Celular")
-        st.info("Aponte a câmera para o QR Code gerado na aba de impressão para abrir a ficha técnica instantaneamente.")
+        st.markdown("### 📷 Capturar QR Code com a Câmera do Celular")
+        st.info("Clique em 'Tirar foto', aponte para a etiqueta impressa da máquina e o sistema identificará o código automaticamente.")
 
-        codigo_lido = qrcode_scanner(key=f"scanner_{titulo}")
+        # Câmera nativa robusta para mobile e desktop
+        foto_capturada = st.camera_input("Tirar Foto da Etiqueta da Máquina", key=f"cam_{titulo}")
 
-        if codigo_lido:
-            st.success(f"🎯 QR Code Lido com Sucesso: **{codigo_lido}**")
-            
-            maq_encontrada = df_maq[
-                df_maq["QR_Code"].str.contains(codigo_lido, case=False, na=False) |
-                df_maq["ID"].str.contains(codigo_lido, case=False, na=False)
-            ]
+        if foto_capturada is not None:
+            # Converte a imagem capturada para processamento OpenCV
+            bytes_img = foto_capturada.getvalue()
+            np_arr = np.frombuffer(bytes_img, np.uint8)
+            img_cv = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-            if not maq_encontrada.empty:
-                maq_info = maq_encontrada.iloc[0]
-                st.markdown(
-                    f"""
-                    <div style="border: 2px solid #28a745; padding: 20px; border-radius: 10px; background-color: #f9f9f9; color: #333;">
-                        <h3 style="margin-top: 0; color: #28a745;">📄 Ficha Técnica Completa (ID: {maq_info['ID']})</h3>
-                        <hr>
-                        <p><b>👤 Cliente Proprietário:</b> {maq_info['Cliente_Nome']} (Tel: {maq_info['Telefone']})</p>
-                        <p><b>🚜 Modelo do Equipamento:</b> {maq_info['Modelo']}</p>
-                        <p><b>📌 Status Atual:</b> <span style="color: #d9534f; font-weight: bold;">{maq_info['Status']}</span></p>
-                        <p><b>📅 Data/Hora de Entrada:</b> {maq_info['Data_Hora_Entrada']}</p>
-                        <p><b>🏁 Data/Hora de Saída:</b> {maq_info.get('Data_Hora_Saida', 'Pendente')}</p>
-                        <p><b>📝 Observações de Recepção:</b> {maq_info['Obs_Cadastro'] if maq_info['Obs_Cadastro'] else 'Nenhuma'}</p>
-                        <hr>
-                        <p><b>🛠️ Laudo Técnico:</b> {maq_info['Descricao_Laudo']}</p>
-                        <p><b>⚠️ Anomalias Encontradas:</b> {maq_info['Anomalias']}</p>
-                        <p><b>💰 Valor do Orçamento:</b> R$ {maq_info['Valor_Orcamento']:.2f}</p>
-                        <p><b>✍️ Orçamento enviado por:</b> {maq_info.get('Mecanico_Laudo', 'N/A')} | <b>⚙️ Executado por:</b> {maq_info.get('Mecanico_Execucao', 'N/A')}</p>
-                    </div>
-                    """,
-                    unsafe_allow_html=True
-                )
-                if maq_info["Pecas_Solicitadas"]:
-                    try:
-                        pecas_lista = json.loads(maq_info["Pecas_Solicitadas"])
-                        if pecas_lista:
-                            st.markdown("#### Peças Utilizadas / Solicitadas:")
-                            st.dataframe(pd.DataFrame(pecas_lista), use_container_width=True)
-                    except:
-                        pass
+            # Detecta o QR Code usando o decodificador nativo do OpenCV
+            detector = cv2.QRCodeDetector()
+            codigo_lido, points, straight_qrcode = detector.detectAndDecode(img_cv)
+
+            if codigo_lido:
+                st.success(f"🎯 QR Code Lido com Sucesso: **{codigo_lido}**")
+                
+                maq_encontrada = df_maq[
+                    df_maq["QR_Code"].str.contains(codigo_lido, case=False, na=False) |
+                    df_maq["ID"].str.contains(codigo_lido, case=False, na=False)
+                ]
+
+                if not maq_encontrada.empty:
+                    maq_info = maq_encontrada.iloc[0]
+                    st.markdown(
+                        f"""
+                        <div style="border: 2px solid #28a745; padding: 20px; border-radius: 10px; background-color: #f9f9f9; color: #333;">
+                            <h3 style="margin-top: 0; color: #28a745;">📄 Ficha Técnica Completa (ID: {maq_info['ID']})</h3>
+                            <hr>
+                            <p><b>👤 Cliente Proprietário:</b> {maq_info['Cliente_Nome']} (Tel: {maq_info['Telefone']})</p>
+                            <p><b>🚜 Modelo do Equipamento:</b> {maq_info['Modelo']}</p>
+                            <p><b>📌 Status Atual:</b> <span style="color: #d9534f; font-weight: bold;">{maq_info['Status']}</span></p>
+                            <p><b>📅 Data/Hora de Entrada:</b> {maq_info['Data_Hora_Entrada']}</p>
+                            <p><b>🏁 Data/Hora de Saída:</b> {maq_info.get('Data_Hora_Saida', 'Pendente')}</p>
+                            <p><b>📝 Observações de Recepção:</b> {maq_info['Obs_Cadastro'] if maq_info['Obs_Cadastro'] else 'Nenhuma'}</p>
+                            <hr>
+                            <p><b>🛠️ Laudo Técnico:</b> {maq_info['Descricao_Laudo']}</p>
+                            <p><b>⚠️ Anomalias Encontradas:</b> {maq_info['Anomalias']}</p>
+                            <p><b>💰 Valor do Orçamento:</b> R$ {maq_info['Valor_Orcamento']:.2f}</p>
+                            <p><b>✍️ Orçamento enviado por:</b> {maq_info.get('Mecanico_Laudo', 'N/A')} | <b>⚙️ Executado por:</b> {maq_info.get('Mecanico_Execucao', 'N/A')}</p>
+                        </div>
+                        """,
+                        unsafe_allow_html=True
+                    )
+                    if maq_info["Pecas_Solicitadas"]:
+                        try:
+                            pecas_lista = json.loads(maq_info["Pecas_Solicitadas"])
+                            if pecas_lista:
+                                st.markdown("#### Peças Utilizadas / Solicitadas:")
+                                st.dataframe(pd.DataFrame(pecas_lista), use_container_width=True)
+                        except:
+                            pass
+                else:
+                    st.warning(f"⚠️ O código lido ('{codigo_lido}') não corresponde a nenhuma máquina cadastrada no sistema.")
             else:
-                st.warning(f"⚠️ O código lido ('{codigo_lido}') não corresponde a nenhuma máquina cadastrada no sistema.")
+                st.error("❌ Nenhum QR Code nítido foi detectado na foto. Aproxime mais a câmera da etiqueta e tente novamente.")
 
     st.markdown("---")
     st.markdown("### 📋 Consulta Detalhada por ID")
