@@ -117,6 +117,13 @@ if "usuario_logado" not in st.session_state:
     st.session_state.usuario_logado = None
 if "perfil_logado" not in st.session_state:
     st.session_state.perfil_logado = None
+if "flash_sucesso" not in st.session_state:
+    st.session_state.flash_sucesso = None
+
+# Exibe mensagem de confirmação persistida após st.rerun()
+if st.session_state.flash_sucesso:
+    st.success(st.session_state.flash_sucesso)
+    st.session_state.flash_sucesso = None
 
 # ---------------------------------------------------------
 # FUNÇÕES DE CONSULTA E PERSISTÊNCIA SQL
@@ -178,7 +185,7 @@ if st.session_state.usuario_logado is None:
             if not match.empty:
                 st.session_state.usuario_logado = match.iloc[0]["Nome"]
                 st.session_state.perfil_logado = match.iloc[0]["Perfil"]
-                st.success("Login efetuado com sucesso!")
+                st.session_state.flash_sucesso = "Login efetuado com sucesso!"
                 st.rerun()
             else:
                 st.error("Usuário ou senha incorretos.")
@@ -187,10 +194,6 @@ if st.session_state.usuario_logado is None:
     st.stop()
 else:
     st.sidebar.success(f"Conectado: **{st.session_state.usuario_logado}**\n\nPerfil: *{st.session_state.perfil_logado}*")
-    
-    if st.sidebar.button("🔄 Sincronizar / Atualizar Informações"):
-        st.success("Dados atualizados com sucesso!")
-        st.rerun()
 
     if st.sidebar.button("Sair (Logout)"):
         st.session_state.usuario_logado = None
@@ -296,16 +299,13 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
         st.markdown("### 📷 Scanner com Câmera Traseira Padrão")
         st.info("Aponte a câmera traseira para o QR Code da máquina e **toque na tela** para capturar a imagem.")
 
-        # Componente otimizado que inicia diretamente com a câmera traseira (environment)
         foto_capturada = back_camera_input(key=f"back_cam_{titulo}")
 
         if foto_capturada is not None:
-            # Converte a imagem capturada para processamento OpenCV
             bytes_img = foto_capturada.getvalue()
             np_arr = np.frombuffer(bytes_img, np.uint8)
             img_cv = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
 
-            # Detecta o QR Code usando o decodificador nativo do OpenCV
             detector = cv2.QRCodeDetector()
             codigo_lido, points, straight_qrcode = detector.detectAndDecode(img_cv)
 
@@ -391,7 +391,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
             if st.button("⚠️ Confirmar Exclusão desta Máquina", key=f"btn_exc_{titulo}"):
                 df_maq = df_maq[df_maq["ID"] != id_para_excluir]
                 salvar_dataframe(df_maq, "maquinas")
-                st.success(f"✅ Máquina {id_para_excluir} removida com sucesso!")
+                st.session_state.flash_sucesso = f"Máquina {id_para_excluir} removida com sucesso!"
                 st.rerun()
 
 # ---------------------------------------------------------
@@ -446,7 +446,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                         }])
                         df_cli = pd.concat([df_cli, novo_c], ignore_index=True)
                         salvar_dataframe(df_cli, "clientes")
-                        st.success(f"✅ Cliente {novo_nome} cadastrado com sucesso!")
+                        st.session_state.flash_sucesso = f"Cliente {novo_nome} cadastrado com sucesso!"
                         st.rerun()
 
         elif cliente_sel != "-- Selecionar Cliente Existente --":
@@ -505,10 +505,11 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                         }
                         df_maq = pd.concat([df_maq, pd.DataFrame([nova_linha])], ignore_index=True)
                         salvar_dataframe(df_maq, "maquinas")
-                        st.success(
-                            f"✅ Máquina cadastrada com sucesso!\n\n"
-                            f"📅 **Entrada:** {data_hora_atual} | 🔢 **Código:** {codigo_num} | 📷 **QR Code Gerado**"
+                        st.session_state.flash_sucesso = (
+                            f"Máquina cadastrada com sucesso! "
+                            f"Entrada: {data_hora_atual} | Código: {codigo_num} | QR Code Gerado."
                         )
+                        st.rerun()
 
     elif sub_menu == "2. Imprimir Etiqueta QR Code":
         st.subheader("🖨️ Geração de QR Code Real & Impressão Direta")
@@ -603,7 +604,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                     df_maq.loc[idx_row, "Mecanico_Laudo"] = "Pendente"
                     df_maq.loc[idx_row, "Status"] = "Aguardando Avaliação Técnica"
                     salvar_dataframe(df_maq, "maquinas")
-                    st.success("✅ Laudo redefinido com sucesso! Agora você pode preenchê-lo novamente.")
+                    st.session_state.flash_sucesso = "Laudo redefinido com sucesso! Agora você pode preenchê-lo novamente."
                     st.rerun()
 
             st.markdown("### Selecionar Peças para o Orçamento")
@@ -681,10 +682,10 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
                         if falta_no_envio:
                             df_maq.loc[idx_row, "Status"] = "Aguardando Precificação (Falta Peças no Estoque)"
-                            st.warning("⚠️ Laudo enviado com sucesso! Note que há peças em falta no estoque; a Secretaria foi avisada.")
+                            st.session_state.flash_sucesso = "Laudo enviado com sucesso! Há peças em falta no estoque; a Secretaria foi avisada."
                         else:
                             df_maq.loc[idx_row, "Status"] = "Aguardando Precificação (Secretaria)"
-                            st.success(f"✅ Laudo enviado com sucesso por {st.session_state.usuario_logado}!")
+                            st.session_state.flash_sucesso = f"Laudo enviado com sucesso por {st.session_state.usuario_logado}!"
 
                         salvar_dataframe(df_maq, "maquinas")
                         st.session_state.carrinho_pecas = []
@@ -721,7 +722,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                             df_maq.loc[idx_row, "Status"] = "Em Manutenção (Na Bancada)"
                             df_maq.loc[idx_row, "Mecanico_Execucao"] = st.session_state.usuario_logado
                             salvar_dataframe(df_maq, "maquinas")
-                            st.success("✅ Peças disponíveis! Manutenção iniciada.")
+                            st.session_state.flash_sucesso = "Peças disponíveis! Manutenção iniciada."
                             st.rerun()
 
                     elif row["Status"] == "Cliente Aprovou (Pronto para Iniciar)":
@@ -729,7 +730,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                             df_maq.loc[idx_row, "Status"] = "Em Manutenção (Na Bancada)"
                             df_maq.loc[idx_row, "Mecanico_Execucao"] = st.session_state.usuario_logado
                             salvar_dataframe(df_maq, "maquinas")
-                            st.success(f"✅ Manutenção iniciada por {st.session_state.usuario_logado}!")
+                            st.session_state.flash_sucesso = f"Manutenção iniciada por {st.session_state.usuario_logado}!"
                             st.rerun()
 
                     elif row["Status"] == "Em Manutenção (Na Bancada)":
@@ -737,7 +738,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                         if st.button(f"🏁 Concluir Serviço (ID {row['ID']})", key=f"concluir_{row['ID']}"):
                             df_maq.loc[idx_row, "Status"] = "Serviço Concluído (Aguardando Retirada)"
                             salvar_dataframe(df_maq, "maquinas")
-                            st.success("🎉 Serviço concluído! Notificação enviada à Secretaria.")
+                            st.session_state.flash_sucesso = "Serviço concluído! Notificação enviada à Secretaria."
                             st.rerun()
 
     elif sub_menu == "5. Consultar Máquinas e Laudos":
@@ -826,7 +827,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                             df_maq.loc[idx_row, "Valor_Orcamento"] = valor_total
                             df_maq.loc[idx_row, "Status"] = "Standby (Aguardando Resposta do Cliente)"
                             salvar_dataframe(df_maq, "maquinas")
-                            st.success("✅ Orçamento precificado e colocado em Standby para contato com o cliente!")
+                            st.session_state.flash_sucesso = "Orçamento precificado e colocado em Standby para contato com o cliente!"
                             st.rerun()
 
         st.markdown("---")
@@ -870,10 +871,10 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
 
                         if falta_estoque:
                             df_maq.loc[idx_row, "Status"] = "Aguardando Peças"
-                            st.warning("⚠️ Cliente aprovou, mas o estoque ainda está insuficiente. Status definido como 'Aguardando Peças'.")
+                            st.session_state.flash_sucesso = "Cliente aprovou, mas o estoque ainda está insuficiente ('Aguardando Peças')."
                         else:
                             df_maq.loc[idx_row, "Status"] = "Cliente Aprovou (Pronto para Iniciar)"
-                            st.success("✅ Aprovado! Peças baixadas do estoque e mecânicos avisados.")
+                            st.session_state.flash_sucesso = "Aprovado! Peças baixadas do estoque e mecânicos avisados."
                         
                         salvar_dataframe(df_maq, "maquinas")
                         st.rerun()
@@ -881,7 +882,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                     if col2.button("❌ Cliente RECUSOU", key=f"rec_{row['ID']}"):
                         df_maq.loc[idx_row, "Status"] = "Orçamento Recusado"
                         salvar_dataframe(df_maq, "maquinas")
-                        st.warning("Orçamento recusado pelo cliente.")
+                        st.session_state.flash_sucesso = "Orçamento marcado como recusado pelo cliente."
                         st.rerun()
 
         st.markdown("---")
@@ -905,7 +906,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                         df_maq.loc[idx_row, "Status"] = "Entregue / Retirado"
                         df_maq.loc[idx_row, "Data_Hora_Saida"] = data_hora_saida_atual
                         salvar_dataframe(df_maq, "maquinas")
-                        st.success(f"✅ Retirada confirmada! Data/Hora de saída registrada: {data_hora_saida_atual}. Ciclo encerrado.")
+                        st.session_state.flash_sucesso = f"Retirada confirmada! Data/Hora de saída: {data_hora_saida_atual}."
                         st.rerun()
 
     with tab2:
@@ -930,7 +931,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                 p_idx = df_est[df_est["Nome"] == peca_repor].index[0]
                 df_est.loc[p_idx, "Quantidade"] += qtd_adicionar
                 salvar_dataframe(df_est, "estoque")
-                st.success(f"✅ Adicionadas {qtd_adicionar} unidades à peça '{peca_repor}' com sucesso!")
+                st.session_state.flash_sucesso = f"Adicionadas {qtd_adicionar} unidades à peça '{peca_repor}' com sucesso!"
                 st.rerun()
 
         st.markdown("---")
@@ -957,7 +958,8 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                     }])
                     df_est = pd.concat([df_est, nova_p], ignore_index=True)
                     salvar_dataframe(df_est, "estoque")
-                    st.success(f"✅ Sucesso! Peça '{nome_p}' cadastrada com ID {novo_id}.")
+                    st.session_state.flash_sucesso = f"Peça '{nome_p}' cadastrada com ID {novo_id}!"
+                    st.rerun()
 
         st.markdown("---")
         st.subheader("🗑️ Excluir Peça do Estoque")
@@ -969,7 +971,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
             if st.button("⚠️ Confirmar Exclusão desta Peça"):
                 df_est = df_est[df_est["Nome"] != peca_para_excluir]
                 salvar_dataframe(df_est, "estoque")
-                st.success(f"✅ Peça '{peca_para_excluir}' removida com sucesso do estoque!")
+                st.session_state.flash_sucesso = f"Peça '{peca_para_excluir}' removida com sucesso do estoque!"
                 st.rerun()
 
     with tab3:
@@ -987,7 +989,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                 if st.button("⚠️ Confirmar Exclusão do Mecânico"):
                     df_usr = df_usr[df_usr["Nome"] != mec_escolhido]
                     salvar_dataframe(df_usr, "usuarios")
-                    st.success(f"✅ Acesso do mecânico '{mec_escolhido}' removido com sucesso!")
+                    st.session_state.flash_sucesso = f"Acesso do mecânico '{mec_escolhido}' removido com sucesso!"
                     st.rerun()
         else:
             st.info("Nenhum mecânico cadastrado para exclusão.")
@@ -1017,7 +1019,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                     ])
                     df_usr = pd.concat([df_usr, novo_mec_df], ignore_index=True)
                     salvar_dataframe(df_usr, "usuarios")
-                    st.success(f"✅ Mecânico {nome_mec} cadastrado com sucesso!")
+                    st.session_state.flash_sucesso = f"Mecânico {nome_mec} cadastrado com sucesso!"
                     st.rerun()
 
     with tab4:
