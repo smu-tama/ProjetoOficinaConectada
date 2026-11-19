@@ -457,6 +457,182 @@ def carregar_visao_consolidada_passagens():
     return df
 
 
+def carregar_historico_cliente(id_cliente):
+    conn = get_connection()
+    maquinas_df = pd.read_sql("""
+        SELECT
+            m.ID,
+            m.QR_Code,
+            m.Modelo,
+            m.Data_Hora_Cadastro,
+            m.Obs_Cadastro,
+            COUNT(p.ID_Passagem) AS Total_Passagens,
+            COALESCE((
+                SELECT p_ult.Status
+                FROM passagens_oficina p_ult
+                WHERE p_ult.ID_Maquina = m.ID
+                ORDER BY p_ult.ID_Passagem DESC
+                LIMIT 1
+            ), 'Sem Passagem Aberta') AS Ultimo_Status
+        FROM maquinas m
+        LEFT JOIN passagens_oficina p ON p.ID_Maquina = m.ID
+        WHERE m.ID_Cliente = ?
+        GROUP BY m.ID, m.QR_Code, m.Modelo, m.Data_Hora_Cadastro, m.Obs_Cadastro
+        ORDER BY m.ID ASC
+    """, conn, params=(str(id_cliente),))
+
+    passagens_df = pd.read_sql("""
+        SELECT
+            p.*,
+            m.Modelo,
+            m.QR_Code
+        FROM passagens_oficina p
+        INNER JOIN maquinas m ON m.ID = p.ID_Maquina
+        WHERE m.ID_Cliente = ?
+        ORDER BY p.ID_Passagem DESC
+    """, conn, params=(str(id_cliente),))
+    conn.close()
+    return maquinas_df, passagens_df
+
+
+def renderizar_visao_historica_cliente(contexto_key="default"):
+    st.subheader("👤 Visão Histórica por Cliente")
+    st.caption("Acompanhe todas as máquinas vinculadas a um cliente e o histórico completo de passagens, orçamentos e cronologia.")
+
+    df_cli = carregar_dados("clientes")
+    if df_cli.empty:
+        st.info("Nenhum cliente cadastrado no sistema.")
+        return
+
+    filtro_cli = st.text_input(
+        "Filtrar cliente por nome, ID ou telefone:",
+        key=f"filtro_cli_{contexto_key}",
+    )
+
+    df_cli_view = df_cli.copy()
+    if filtro_cli.strip():
+        termo = filtro_cli.strip().lower()
+        df_cli_view = df_cli_view[
+            df_cli_view["Nome"].str.lower().str.contains(termo, na=False)
+            | df_cli_view["ID_Cliente"].str.lower().str.contains(termo, na=False)
+            | df_cli_view["Telefone"].astype(str).str.lower().str.contains(termo, na=False)
+        ]
+
+    if df_cli_view.empty:
+        st.warning("Nenhum cliente corresponde ao filtro informado.")
+        return
+
+    opcoes_cli = [
+        f"{r['ID_Cliente']} — {r['Nome']} (Tel: {r['Telefone']})"
+        for _, r in df_cli_view.iterrows()
+    ]
+    sel_cli = st.selectbox("Selecione o Cliente:", opcoes_cli, key=f"sel_cli_{contexto_key}")
+    idx_cli = opcoes_cli.index(sel_cli)
+    cli_row = df_cli_view.iloc[idx_cli]
+    id_cli = str(cli_row["ID_Cliente"])
+
+    maquinas_cli, passagens_cli = carregar_historico_cliente(id_cli)
+
+    status_encerrados = {"Entregue / Retirado", "Orçamento Recusado"}
+    em_andamento_qtd = 0
+    if not passagens_cli.empty:
+        em_andamento_qtd = int((~passagens_cli["Status"].isin(status_encerrados)).sum())
+
+    total_orcado = 0.0
+    if not passagens_cli.empty:
+        validos = passagens_cli[passagens_cli["Status"] != "Orçamento Recusado"]
+        total_orcado = float(pd.to_numeric(validos["Valor_Orcamento"], errors="coerce").fillna(0.0).sum())
+
+    st.markdown("---")
+    st.markdown(f"### 📋 Cliente: **{cli_row['Nome']}** (`{id_cli}`) • 📞 `{cli_row['Telefone']}`")
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Máquinas Vinculadas", len(maquinas_cli))
+    m2.metric("Total de Passagens", len(passagens_cli))
+    m3.metric("Passagens em Andamento", em_andamento_qtd)
+    m4.metric("Total em Orçamentos (Não Recusados)", fmt_valor(total_orcado))
+
+    st.markdown("---")
+    st.markdown("#### 🚜 Máquinas Vinculadas ao Cliente")
+    if maquinas_cli.empty:
+        st.info("Este cliente ainda não possui máquinas cadastradas.")
+    else:
+        st.dataframe(
+            maquinas_cli[[
+                "ID",
+                "Modelo",
+                "QR_Code",
+                "Total_Passagens",
+                "Ultimo_Status",
+                "Data_Hora_Cadastro",
+                "Obs_Cadastro",
+            ]],
+            use_container_width=True,
+            hide_index=True,
+        )
+
+    st.markdown("---")
+    st.markdown("#### 🗂️ Histórico Unificado de Passagens do Cliente")
+    if passagens_cli.empty:
+        st.info("Nenhuma passagem registrada para as máquinas deste cliente até o momento.")
+        return
+
+    col_f1, col_f2 = st.columns(2)
+    ids_maq_cli = ["Todas"] + sorted(maquinas_cli["ID"].astype(str).unique().tolist())
+    status_cli = ["Todos"] + sorted(passagens_cli["Status"].dropna().astype(str).unique().tolist())
+
+    filtro_maq = col_f1.selectbox("Filtrar por Máquina:", ids_maq_cli, key=f"f_maq_{contexto_key}")
+    filtro_st = col_f2.selectbox("Filtrar por Status:", status_cli, key=f"f_st_{contexto_key}")
+
+    passagens_filtradas = passagens_cli.copy()
+    if filtro_maq != "Todas":
+        passagens_filtradas = passagens_filtradas[passagens_filtradas["ID_Maquina"].astype(str) == filtro_maq]
+    if filtro_st != "Todos":
+        passagens_filtradas = passagens_filtradas[passagens_filtradas["Status"] == filtro_st]
+
+    if passagens_filtradas.empty:
+        st.info("Nenhuma passagem encontrada com os filtros selecionados.")
+        return
+
+    st.dataframe(
+        passagens_filtradas[[
+            "ID_Passagem",
+            "ID_Maquina",
+            "Modelo",
+            "Status",
+            "Valor_Orcamento",
+            "Data_Hora_Entrada",
+            "Data_Hora_Conclusao_Servico",
+            "Data_Hora_Saida",
+            "Mecanico_Laudo",
+            "Mecanico_Execucao",
+        ]],
+        use_container_width=True,
+        hide_index=True,
+    )
+
+    for _, p in passagens_filtradas.iterrows():
+        with st.expander(
+            f"Passagem #{p['ID_Passagem']} — Máquina {p['ID_Maquina']} ({p['Modelo']}) | Status: {p['Status']} | Valor: {fmt_valor(p['Valor_Orcamento'])}"
+        ):
+            st.write(f"**Laudo Técnico:** {fmt_data(p.get('Descricao_Laudo'))}")
+            st.write(f"**Anomalias:** {fmt_data(p.get('Anomalias'), 'Nenhuma')}")
+            st.write(
+                f"**Mecânico Laudo:** {fmt_data(p.get('Mecanico_Laudo'), 'Pendente')} | "
+                f"**Mecânico Execução:** {fmt_data(p.get('Mecanico_Execucao'), 'Pendente')}"
+            )
+            st.markdown("---")
+            st.markdown(renderizar_cronologia_texto(p))
+            if p.get("Pecas_Solicitadas"):
+                try:
+                    p_list = json.loads(p["Pecas_Solicitadas"])
+                    if p_list:
+                        st.markdown("**Peças da Passagem:**")
+                        st.dataframe(pd.DataFrame(p_list), use_container_width=True, hide_index=True)
+                except Exception:
+                    pass
+
+
 # ---------------------------------------------------------
 # SISTEMA DE LOGIN
 # ---------------------------------------------------------
@@ -795,6 +971,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
             "3. Cadastrar / Editar Laudo Técnico",
             "4. Executar Manutenção & Concluir Serviços",
             "5. Consultar Máquinas e Passagens",
+            "6. Histórico por Cliente",
         ],
     )
 
@@ -1221,6 +1398,9 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
     elif sub_menu == "5. Consultar Máquinas e Passagens":
         renderizar_tabela_com_busca()
 
+    elif sub_menu == "6. Histórico por Cliente":
+        renderizar_visao_historica_cliente(contexto_key="mecanico")
+
 
 # ---------------------------------------------------------
 # VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (Desktop)
@@ -1228,11 +1408,12 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 elif st.session_state.perfil_logado == "Secretaria (Administração)":
     st.header("💻 Módulo Administrativo & Financeiro (Secretaria)")
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
         "📋 Gestão de Orçamentos",
         "📦 Almoxarifado / Estoque",
         "👥 Gestão de Mecânicos",
         "📊 Visão Geral e Passagens",
+        "👤 Histórico por Cliente",
         "📜 Logs do Sistema",
     ])
 
@@ -1629,6 +1810,9 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         renderizar_tabela_com_busca("📊 Painel Geral de Máquinas e Passagens")
 
     with tab5:
+        renderizar_visao_historica_cliente(contexto_key="secretaria")
+
+    with tab6:
         st.subheader("📜 Registro de Logs do Sistema (Somente Leitura)")
         st.caption("Os registros de auditoria são gravados automaticamente e não podem ser alterados ou excluídos pela aplicação.")
 
