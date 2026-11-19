@@ -15,9 +15,157 @@ st.set_page_config(
     page_title="Oficina Conectada - Sistema de Gestão",
     page_icon="🔧",
     layout="wide",
+    initial_sidebar_state="auto",
 )
 
-st.title("🔧 Oficina Conectada: Gestão Integrada (SQL)")
+# ---------------------------------------------------------
+# IDENTIDADE VISUAL (BRANCO, AZUL E AMARELO) & NAVEGAÇÃO
+# ---------------------------------------------------------
+st.markdown(
+    """
+    <style>
+        :root {
+            --azul-escuro: #0F3D75;
+            --azul-principal: #1D5FA7;
+            --azul-claro-bg: #EEF4FB;
+            --amarelo-destaque: #F5B700;
+            --amarelo-suave: #FFF8DB;
+            --branco: #FFFFFF;
+            --borda-azul: #C8D9EE;
+            --texto-escuro: #162436;
+        }
+
+        .stApp {
+            background-color: #F7FAFD;
+            color: var(--texto-escuro);
+        }
+
+        [data-testid="stSidebar"] {
+            background-color: var(--branco);
+            border-right: 2px solid var(--borda-azul);
+        }
+
+        /* Cabeçalho de marca Branco, Azul e Amarelo */
+        .oficina-header {
+            background: linear-gradient(90deg, #0F3D75 0%, #1D5FA7 82%, #F5B700 100%);
+            color: #FFFFFF;
+            padding: 18px 24px;
+            border-radius: 12px;
+            border-bottom: 4px solid #F5B700;
+            margin-bottom: 14px;
+            box-shadow: 0 3px 10px rgba(15, 61, 117, 0.12);
+        }
+        .oficina-header h1 {
+            margin: 0;
+            font-size: 1.65rem;
+            color: #FFFFFF;
+        }
+        .oficina-header p {
+            margin: 4px 0 0 0;
+            font-size: 0.92rem;
+            color: #FFF8DB;
+        }
+
+        /* Botões padrão em Azul com detalhe Amarelo */
+        .stButton > button,
+        .stFormSubmitButton > button,
+        .stDownloadButton > button {
+            background-color: #1D5FA7;
+            color: #FFFFFF;
+            border: 1.5px solid #0F3D75;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.18s ease;
+        }
+        .stButton > button:hover,
+        .stFormSubmitButton > button:hover,
+        .stDownloadButton > button:hover {
+            background-color: #0F3D75;
+            color: #FFD166;
+            border-color: #F5B700;
+        }
+
+        /* Painel superior de navegação (visível no PC, oculto no mobile) */
+        .painel-nav-desktop-label {
+            font-size: 0.85rem;
+            font-weight: 700;
+            color: #0F3D75;
+            border-left: 4px solid #F5B700;
+            padding-left: 8px;
+            margin-bottom: 6px;
+        }
+
+        /* Abas com destaque Azul e Amarelo */
+        .stTabs [data-baseweb="tab-list"] {
+            gap: 6px;
+            border-bottom: 2px solid #C8D9EE;
+        }
+        .stTabs [data-baseweb="tab"] {
+            background-color: #FFFFFF;
+            color: #0F3D75;
+            border: 1px solid #C8D9EE;
+            border-bottom: none;
+            border-radius: 8px 8px 0 0;
+            font-weight: 600;
+            padding: 8px 14px;
+        }
+        .stTabs [aria-selected="true"] {
+            background-color: #0F3D75 !important;
+            color: #FFD166 !important;
+            border-bottom: 3px solid #F5B700 !important;
+        }
+
+        /* Cards de métricas */
+        [data-testid="stMetric"] {
+            background-color: #FFFFFF;
+            border: 1px solid #C8D9EE;
+            border-top: 4px solid #F5B700;
+            border-radius: 10px;
+            padding: 12px 16px;
+        }
+        [data-testid="stMetricLabel"] {
+            color: #0F3D75 !important;
+            font-weight: 600;
+        }
+
+        /* Responsividade: no Mobile esconde o painel superior e prioriza o painel lateral */
+        .nav-mobile-only {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .nav-desktop-only {
+                display: none !important;
+            }
+            .nav-mobile-only {
+                display: block !important;
+                background-color: #FFF8DB;
+                border: 1.5px solid #F5B700;
+                color: #0F3D75;
+                padding: 10px 14px;
+                border-radius: 8px;
+                font-size: 0.88rem;
+                font-weight: 600;
+                margin-bottom: 12px;
+            }
+            .oficina-header h1 {
+                font-size: 1.3rem;
+            }
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+st.markdown(
+    """
+    <div class="oficina-header">
+        <h1>🔧 Oficina Conectada: Gestão Integrada (SQL)</h1>
+        <p>Controle de clientes, máquinas, passagens, estoque, orçamentos e auditoria</p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
 
 
 def agora_str():
@@ -81,7 +229,6 @@ def inicializar_banco():
         )
     """)
 
-    # Cadastro mestre da máquina vinculada ao cliente
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS maquinas (
             ID TEXT PRIMARY KEY,
@@ -95,7 +242,6 @@ def inicializar_banco():
         )
     """)
 
-    # Histórico de passagens / orçamentos / serviços (0, 1 ou várias por máquina)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS passagens_oficina (
             ID_Passagem INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -121,7 +267,6 @@ def inicializar_banco():
 
     garantir_colunas_passagens(cursor)
 
-    # Migração caso exista banco legado onde 'maquinas' continha colunas de passagem
     cursor.execute("PRAGMA table_info(maquinas)")
     cols_maq = {row[1] for row in cursor.fetchall()}
     if "Status" in cols_maq:
@@ -174,7 +319,6 @@ def inicializar_banco():
     if "Data_Hora_Cadastro" not in cols_maq_atual:
         cursor.execute("ALTER TABLE maquinas ADD COLUMN Data_Hora_Cadastro TEXT")
 
-    # Tabela de Logs somente leitura / append-only na aplicação
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS logs (
             ID_Log INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -235,6 +379,10 @@ if "perfil_logado" not in st.session_state:
     st.session_state.perfil_logado = None
 if "flash_sucesso" not in st.session_state:
     st.session_state.flash_sucesso = None
+if "tela_mecanico" not in st.session_state:
+    st.session_state.tela_mecanico = "Entrada / Passagens"
+if "tela_secretaria" not in st.session_state:
+    st.session_state.tela_secretaria = "Orçamentos"
 
 if st.session_state.flash_sucesso:
     st.success(st.session_state.flash_sucesso)
@@ -349,7 +497,7 @@ def fmt_valor(val):
 
 def renderizar_cronologia_html(passagem):
     return f"""
-        <hr>
+        <hr style="border-color: #C8D9EE;">
         <p><b>📅 Data/Hora de Chegada (Entrada):</b> {fmt_data(passagem.get('Data_Hora_Entrada'))}</p>
         <p><b>📋 Data/Hora do Orçamento Passado pelo Mecânico:</b> {fmt_data(passagem.get('Data_Hora_Laudo'))}</p>
         <p><b>📤 Data/Hora do Orçamento Passado ao Cliente (Secretaria):</b> {fmt_data(passagem.get('Data_Hora_Envio_Orcamento'))}</p>
@@ -636,7 +784,7 @@ def renderizar_visao_historica_cliente(contexto_key="default"):
 # ---------------------------------------------------------
 # SISTEMA DE LOGIN
 # ---------------------------------------------------------
-st.sidebar.title("🔐 Autenticação de Usuário")
+st.sidebar.markdown("### 🔐 Autenticação de Usuário")
 
 if st.session_state.usuario_logado is None:
     st.sidebar.subheader("Fazer Login no Sistema")
@@ -677,6 +825,52 @@ else:
         st.rerun()
 
 st.sidebar.markdown("---")
+
+
+# ---------------------------------------------------------
+# NAVEGAÇÃO ADAPTATIVA (PAINEL SUPERIOR NO PC / LATERAL NO MOBILE)
+# ---------------------------------------------------------
+def navegar_telas(opcoes_telas, chave_estado):
+    """
+    - No PC (nav-desktop-only): renderiza painel superior de botões.
+    - No Mobile (nav-mobile-only): exibe aviso direcionando para o painel lateral.
+    - Na Barra Lateral (st.sidebar): renderiza os botões de navegação para uso no celular.
+    """
+    tela_atual = st.session_state.get(chave_estado, opcoes_telas[0])
+    if tela_atual not in opcoes_telas:
+        tela_atual = opcoes_telas[0]
+        st.session_state[chave_estado] = tela_atual
+
+    # 1) Painel Superior no PC
+    st.markdown('<div class="nav-desktop-only">', unsafe_allow_html=True)
+    st.markdown('<div class="painel-nav-desktop-label">🧭 Painel Superior de Navegação</div>', unsafe_allow_html=True)
+    cols = st.columns(len(opcoes_telas))
+    for idx, nome_tela in enumerate(opcoes_telas):
+        ativa = nome_tela == tela_atual
+        rotulo = f"🟡 {nome_tela}" if ativa else nome_tela
+        if cols[idx].button(rotulo, key=f"top_nav_{chave_estado}_{idx}", use_container_width=True):
+            st.session_state[chave_estado] = nome_tela
+            st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # 2) Aviso no Mobile indicando o painel lateral
+    st.markdown(
+        f'<div class="nav-mobile-only">📱 Tela atual: <b>{tela_atual}</b> — Abra o menu lateral (<b>☰</b> ou <b>&gt;</b>) para navegar entre as telas.</div>',
+        unsafe_allow_html=True,
+    )
+
+    # 3) Painel Lateral de Navegação (especialmente prático no mobile)
+    st.sidebar.markdown("### 🧭 Navegação entre Telas")
+    for idx, nome_tela in enumerate(opcoes_telas):
+        ativa = nome_tela == tela_atual
+        rotulo_side = f"🟡 {nome_tela}" if ativa else nome_tela
+        if st.sidebar.button(rotulo_side, key=f"side_nav_{chave_estado}_{idx}", use_container_width=True):
+            st.session_state[chave_estado] = nome_tela
+            st.rerun()
+
+    st.sidebar.markdown("---")
+    return st.session_state[chave_estado]
+
 
 # ---------------------------------------------------------
 # CENTRAL DE NOTIFICAÇÕES (Lidas do SQL)
@@ -753,7 +947,7 @@ st.sidebar.markdown("---")
 
 
 def exibir_notificacoes_mecanico_fixas():
-    """Exibe as notificações da oficina na área principal independente do submenu ativo."""
+    """Exibe as notificações da oficina na área principal independente da tela ativa."""
     if st.session_state.perfil_logado != "Mecânico (Oficina)":
         return
 
@@ -795,15 +989,15 @@ def renderizar_ficha_completa_maquina(maq_info):
 
     st.markdown(
         f"""
-        <div style="border: 2px solid #28a745; padding: 20px; border-radius: 10px; background-color: #f9f9f9; color: #333;">
-            <h3 style="margin-top: 0; color: #28a745;">📄 Ficha Técnica Completa (ID: {maq_info['ID']})</h3>
-            <hr>
+        <div style="border: 2px solid #1D5FA7; border-left: 6px solid #F5B700; padding: 20px; border-radius: 10px; background-color: #FFFFFF; color: #162436;">
+            <h3 style="margin-top: 0; color: #0F3D75;">📄 Ficha Técnica Completa (ID: {maq_info['ID']})</h3>
+            <hr style="border-color: #C8D9EE;">
             <p><b>👤 Cliente Associado:</b> {maq_info['Cliente_Nome']} (ID Cliente: {maq_info.get('ID_Cliente', 'N/A')} | Tel: {maq_info['Telefone']})</p>
             <p><b>🚜 Modelo do Equipamento:</b> {maq_info['Modelo']}</p>
             <p><b>🗂️ Total de Passagens / Orçamentos na Oficina:</b> {len(df_p)}</p>
-            <p><b>📌 Status da Última Passagem:</b> <span style="color: #d9534f; font-weight: bold;">{status_atual}</span></p>
+            <p><b>📌 Status da Última Passagem:</b> <span style="color: #0F3D75; background-color: #FFF8DB; padding: 2px 8px; border-radius: 5px; border: 1px solid #F5B700; font-weight: bold;">{status_atual}</span></p>
             <p><b>📝 Observações de Cadastro:</b> {maq_info['Obs_Cadastro'] if maq_info.get('Obs_Cadastro') else 'Nenhuma'}</p>
-            <hr>
+            <hr style="border-color: #C8D9EE;">
             <p><b>🛠️ Laudo Técnico (Última Passagem):</b> {laudo_atual}</p>
             <p><b>⚠️ Anomalias Encontradas:</b> {anomalias_atual}</p>
             <p><b>💰 Valor do Orçamento (Última Passagem):</b> {fmt_valor(valor_atual)}</p>
@@ -959,23 +1153,21 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Passag
 # VISÃO 1: MECÂNICO (Dispositivo Móvel / Oficina)
 # ---------------------------------------------------------
 if st.session_state.perfil_logado == "Mecânico (Oficina)":
-    st.header(f"📱 Módulo da Oficina - Mecânico: {st.session_state.usuario_logado}")
+    st.subheader(f"📱 Módulo da Oficina — Mecânico: {st.session_state.usuario_logado}")
 
     exibir_notificacoes_mecanico_fixas()
 
-    sub_menu = st.radio(
-        "Ação:",
-        [
-            "1. Cadastrar Máquina / Abrir Passagem",
-            "2. Imprimir Etiqueta QR Code",
-            "3. Cadastrar / Editar Laudo Técnico",
-            "4. Executar Manutenção & Concluir Serviços",
-            "5. Consultar Máquinas e Passagens",
-            "6. Histórico por Cliente",
-        ],
-    )
+    telas_mecanico = [
+        "Entrada / Passagens",
+        "Etiqueta QR Code",
+        "Laudo Técnico",
+        "Execução",
+        "Máquinas e Passagens",
+        "Histórico por Cliente",
+    ]
+    tela_ativa = navegar_telas(telas_mecanico, "tela_mecanico")
 
-    if sub_menu == "1. Cadastrar Máquina / Abrir Passagem":
+    if tela_ativa == "Entrada / Passagens":
         st.subheader("📝 Registrar Máquina e Passagens na Oficina")
 
         df_cli = carregar_dados("clientes")
@@ -1025,13 +1217,12 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
             tel_cli_final = cli_row["Telefone"]
 
         st.markdown("---")
-        modo_entrada = st.radio(
+        modo_entrada = st.selectbox(
             "Modo de Registro:",
             [
                 "Cadastrar Nova Máquina (com ou sem abertura imediata de passagem)",
                 "Abrir Nova Passagem para Máquina Já Cadastrada",
             ],
-            horizontal=True,
         )
 
         if modo_entrada == "Cadastrar Nova Máquina (com ou sem abertura imediata de passagem)":
@@ -1128,7 +1319,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                     )
                     st.rerun()
 
-    elif sub_menu == "2. Imprimir Etiqueta QR Code":
+    elif tela_ativa == "Etiqueta QR Code":
         st.subheader("🖨️ Geração de QR Code Real & Impressão Direta")
         df_maq = carregar_dados("maquinas")
         if df_maq.empty:
@@ -1160,16 +1351,16 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                     }}
                 </style>
 
-                <div id="etiqueta-print" style="border: 2px dashed #333; padding: 20px; border-radius: 10px; width: 320px; background-color: #fff; color: #000; text-align: center; margin-bottom: 20px;">
-                    <h3 style="margin: 0; font-size: 18px;">🔧 OFICINA CONECTADA</h3>
-                    <hr style="border: 1px solid #ccc; margin: 10px 0;">
+                <div id="etiqueta-print" style="border: 2px dashed #1D5FA7; padding: 20px; border-radius: 10px; width: 320px; background-color: #FFFFFF; color: #0F3D75; text-align: center; margin-bottom: 20px;">
+                    <h3 style="margin: 0; font-size: 18px; color: #0F3D75;">🔧 OFICINA CONECTADA</h3>
+                    <hr style="border: 1px solid #F5B700; margin: 10px 0;">
                     <p style="font-size: 13px; margin: 4px 0; text-align: left;"><b>Cliente:</b> {maq_info['Cliente_Nome']}</p>
                     <p style="font-size: 13px; margin: 4px 0; text-align: left;"><b>Modelo:</b> {maq_info['Modelo']}</p>
                     <p style="font-size: 12px; margin: 4px 0; text-align: left;"><b>Cadastro:</b> {fmt_data(maq_info.get('Data_Hora_Cadastro'))}</p>
                     <div style="margin: 10px 0;">
                         <img src="data:image/png;base64,{__import__('base64').b64encode(bytes_qrcode).decode()}" width="160px" />
                     </div>
-                    <h2 style="margin: 0; color: #d9534f; font-size: 24px;">ID: {maq_info['ID']}</h2>
+                    <h2 style="margin: 0; color: #0F3D75; background-color: #FFF8DB; border: 1px solid #F5B700; border-radius: 6px; padding: 4px; font-size: 22px;">ID: {maq_info['ID']}</h2>
                 </div>
                 """,
                 unsafe_allow_html=True,
@@ -1177,7 +1368,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
             st.markdown(
                 """
-                <button onclick="window.print();" style="background-color: #ff4b4b; color: white; padding: 10px 20px; border: none; border-radius: 5px; font-weight: bold; cursor: pointer; font-size: 14px;">
+                <button onclick="window.print();" style="background-color: #0F3D75; color: #FFD166; padding: 10px 20px; border: 2px solid #F5B700; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px;">
                     🖨️ Imprimir Etiqueta Diretamente
                 </button>
                 """,
@@ -1185,7 +1376,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
             )
             st.markdown("---")
 
-    elif sub_menu == "3. Cadastrar / Editar Laudo Técnico":
+    elif tela_ativa == "Laudo Técnico":
         st.subheader("🛠️ Diagnóstico, Exclusão/Alteração e Envio de Laudo")
 
         df_consolidado = carregar_visao_consolidada_passagens()
@@ -1326,7 +1517,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                         st.session_state.carrinho_pecas = []
                         st.rerun()
 
-    elif sub_menu == "4. Executar Manutenção & Concluir Serviços":
+    elif tela_ativa == "Execução":
         st.subheader("⚙️ Execução e Conclusão de Manutenções")
 
         df_consolidado = carregar_visao_consolidada_passagens()
@@ -1395,29 +1586,30 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                             )
                             st.rerun()
 
-    elif sub_menu == "5. Consultar Máquinas e Passagens":
+    elif tela_ativa == "Máquinas e Passagens":
         renderizar_tabela_com_busca()
 
-    elif sub_menu == "6. Histórico por Cliente":
+    elif tela_ativa == "Histórico por Cliente":
         renderizar_visao_historica_cliente(contexto_key="mecanico")
 
 
 # ---------------------------------------------------------
-# VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (Desktop)
+# VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (Desktop & Mobile)
 # ---------------------------------------------------------
 elif st.session_state.perfil_logado == "Secretaria (Administração)":
-    st.header("💻 Módulo Administrativo & Financeiro (Secretaria)")
+    st.subheader("💻 Módulo Administrativo & Financeiro (Secretaria)")
 
-    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
-        "📋 Gestão de Orçamentos",
-        "📦 Almoxarifado / Estoque",
-        "👥 Gestão de Mecânicos",
-        "📊 Visão Geral e Passagens",
-        "👤 Histórico por Cliente",
-        "📜 Logs do Sistema",
-    ])
+    telas_secretaria = [
+        "Orçamentos",
+        "Estoque",
+        "Mecânicos",
+        "Máquinas e Passagens",
+        "Histórico por Cliente",
+        "Logs",
+    ]
+    tela_sec_ativa = navegar_telas(telas_secretaria, "tela_secretaria")
 
-    with tab1:
+    if tela_sec_ativa == "Orçamentos":
         st.subheader("🚨 Orçamentos com Aviso de Falta de Peças (Reposição Necessária)")
         df_maq_tab1 = carregar_visao_consolidada_passagens()
         df_maq_tab1 = df_maq_tab1[df_maq_tab1["ID_Passagem"].notna()]
@@ -1674,7 +1866,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                         )
                         st.rerun()
 
-    with tab2:
+    elif tela_sec_ativa == "Estoque":
         st.subheader("📦 Almoxarifado - Controle Geral de Estoque")
         df_est = carregar_dados("estoque")
 
@@ -1751,7 +1943,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                 st.session_state.flash_sucesso = f"Peça '{peca_para_excluir}' removida com sucesso do estoque!"
                 st.rerun()
 
-    with tab3:
+    elif tela_sec_ativa == "Mecânicos":
         st.subheader("👥 Gestão de Mecânicos da Oficina")
         df_usr = carregar_dados("usuarios")
         mecanicos_df = df_usr[df_usr["Perfil"] == "Mecânico (Oficina)"]
@@ -1806,13 +1998,13 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                     st.session_state.flash_sucesso = f"Mecânico {nome_mec} cadastrado com sucesso!"
                     st.rerun()
 
-    with tab4:
+    elif tela_sec_ativa == "Máquinas e Passagens":
         renderizar_tabela_com_busca("📊 Painel Geral de Máquinas e Passagens")
 
-    with tab5:
+    elif tela_sec_ativa == "Histórico por Cliente":
         renderizar_visao_historica_cliente(contexto_key="secretaria")
 
-    with tab6:
+    elif tela_sec_ativa == "Logs":
         st.subheader("📜 Registro de Logs do Sistema (Somente Leitura)")
         st.caption("Os registros de auditoria são gravados automaticamente e não podem ser alterados ou excluídos pela aplicação.")
 
