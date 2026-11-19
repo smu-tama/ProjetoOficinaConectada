@@ -11,7 +11,6 @@ import pandas as pd
 import streamlit as st
 from streamlit_back_camera_input import back_camera_input
 
-# Configuração da Página
 st.set_page_config(
     page_title="Oficina Conectada - Sistema de Gestão",
     page_icon="🔧",
@@ -20,6 +19,11 @@ st.set_page_config(
 
 st.title("🔧 Oficina Conectada: Gestão Integrada (SQL)")
 
+
+def agora_str():
+    return datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+
 # ---------------------------------------------------------
 # CONFIGURAÇÃO E INICIALIZAÇÃO DO BANCO DE DADOS SQLITE
 # ---------------------------------------------------------
@@ -27,11 +31,29 @@ def get_connection():
     conn = sqlite3.connect("oficina.db", check_same_thread=False)
     return conn
 
+
+def garantir_colunas_maquinas(cursor):
+    colunas_esperadas = {
+        "Data_Hora_Entrada": "TEXT",
+        "Data_Hora_Laudo": "TEXT",
+        "Data_Hora_Envio_Orcamento": "TEXT",
+        "Data_Hora_Resposta_Cliente": "TEXT",
+        "Data_Hora_Inicio_Servico": "TEXT",
+        "Data_Hora_Conclusao_Servico": "TEXT",
+        "Data_Hora_Notificacao_Conclusao": "TEXT",
+        "Data_Hora_Saida": "TEXT",
+    }
+    cursor.execute("PRAGMA table_info(maquinas)")
+    existentes = {row[1] for row in cursor.fetchall()}
+    for col, tipo in colunas_esperadas.items():
+        if col not in existentes:
+            cursor.execute(f"ALTER TABLE maquinas ADD COLUMN {col} {tipo}")
+
+
 def inicializar_banco():
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Tabela de Usuários
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             Usuario TEXT PRIMARY KEY,
@@ -41,7 +63,6 @@ def inicializar_banco():
         )
     """)
 
-    # Tabela de Clientes
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS clientes (
             ID_Cliente TEXT PRIMARY KEY,
@@ -50,7 +71,6 @@ def inicializar_banco():
         )
     """)
 
-    # Tabela de Estoque
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS estoque (
             ID_Peca TEXT PRIMARY KEY,
@@ -61,7 +81,6 @@ def inicializar_banco():
         )
     """)
 
-    # Tabela de Máquinas e Laudos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS maquinas (
             ID TEXT PRIMARY KEY,
@@ -71,6 +90,12 @@ def inicializar_banco():
             Telefone TEXT,
             Modelo TEXT,
             Data_Hora_Entrada TEXT,
+            Data_Hora_Laudo TEXT,
+            Data_Hora_Envio_Orcamento TEXT,
+            Data_Hora_Resposta_Cliente TEXT,
+            Data_Hora_Inicio_Servico TEXT,
+            Data_Hora_Conclusao_Servico TEXT,
+            Data_Hora_Notificacao_Conclusao TEXT,
             Data_Hora_Saida TEXT,
             Obs_Cadastro TEXT,
             Status TEXT,
@@ -83,7 +108,20 @@ def inicializar_banco():
         )
     """)
 
-    # Dados Iniciais (Se as tabelas estiverem vazias)
+    garantir_colunas_maquinas(cursor)
+
+    # Tabela de Logs somente leitura / append-only na aplicação
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS logs (
+            ID_Log INTEGER PRIMARY KEY AUTOINCREMENT,
+            Data_Hora TEXT NOT NULL,
+            Usuario TEXT NOT NULL,
+            Perfil TEXT NOT NULL,
+            Acao TEXT NOT NULL,
+            Detalhes TEXT NOT NULL
+        )
+    """)
+
     cursor.execute("SELECT COUNT(*) FROM usuarios")
     if cursor.fetchone()[0] == 0:
         cursor.executemany("INSERT INTO usuarios VALUES (?, ?, ?, ?)", [
@@ -110,8 +148,22 @@ def inicializar_banco():
     conn.commit()
     conn.close()
 
-# Executa a inicialização do banco
+
 inicializar_banco()
+
+
+def registrar_log(acao, detalhes):
+    usuario = st.session_state.get("usuario_logado") or "Visitante / Não autenticado"
+    perfil = st.session_state.get("perfil_logado") or "Sem perfil"
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO logs (Data_Hora, Usuario, Perfil, Acao, Detalhes) VALUES (?, ?, ?, ?, ?)",
+        (agora_str(), usuario, perfil, acao, detalhes),
+    )
+    conn.commit()
+    conn.close()
+
 
 if "usuario_logado" not in st.session_state:
     st.session_state.usuario_logado = None
@@ -120,10 +172,10 @@ if "perfil_logado" not in st.session_state:
 if "flash_sucesso" not in st.session_state:
     st.session_state.flash_sucesso = None
 
-# Exibe mensagem de confirmação persistida após st.rerun()
 if st.session_state.flash_sucesso:
     st.success(st.session_state.flash_sucesso)
     st.session_state.flash_sucesso = None
+
 
 # ---------------------------------------------------------
 # FUNÇÕES DE CONSULTA E PERSISTÊNCIA SQL
@@ -134,10 +186,15 @@ def carregar_dados(tabela):
     conn.close()
     return df
 
+
 def salvar_dataframe(df, tabela):
+    # Proteção para nunca regravar ou alterar a tabela de logs via DataFrame
+    if tabela == "logs":
+        raise PermissionError("A tabela de logs é imutável e não pode ser substituída.")
     conn = get_connection()
     df.to_sql(tabela, conn, if_exists="replace", index=False)
     conn.close()
+
 
 # ---------------------------------------------------------
 # FUNÇÃO AUXILIAR: GERAR QR CODE REAL EM BYTES
@@ -152,10 +209,11 @@ def gerar_imagem_qrcode(texto_dado):
     qr.add_data(texto_dado)
     qr.make(fit=True)
     img = qr.make_image(fill_color="black", back_color="white")
-    
+
     buffer = io.BytesIO()
     img.save(buffer, format="PNG")
     return buffer.getvalue()
+
 
 def validar_telefone(tel_str):
     apenas_numeros = re.sub(r"\D", "", tel_str)
@@ -163,14 +221,48 @@ def validar_telefone(tel_str):
         return apenas_numeros
     return None
 
+
+def fmt_data(val, fallback="Pendente"):
+    if val is None or (isinstance(val, float) and np.isnan(val)) or str(val).strip() in ("", "None", "nan"):
+        return fallback
+    return str(val)
+
+
+def renderizar_cronologia_html(maq_info):
+    return f"""
+        <hr>
+        <p><b>📅 Data/Hora de Chegada (Entrada):</b> {fmt_data(maq_info.get('Data_Hora_Entrada'))}</p>
+        <p><b>📋 Data/Hora do Orçamento Passado pelo Mecânico:</b> {fmt_data(maq_info.get('Data_Hora_Laudo'))}</p>
+        <p><b>📤 Data/Hora do Orçamento Passado ao Cliente (Secretaria):</b> {fmt_data(maq_info.get('Data_Hora_Envio_Orcamento'))}</p>
+        <p><b>✍️ Data/Hora da Resposta do Cliente (Aprovou/Reprovou):</b> {fmt_data(maq_info.get('Data_Hora_Resposta_Cliente'))}</p>
+        <p><b>▶️ Data/Hora de Início do Serviço:</b> {fmt_data(maq_info.get('Data_Hora_Inicio_Servico'))}</p>
+        <p><b>🏁 Data/Hora de Conclusão do Serviço:</b> {fmt_data(maq_info.get('Data_Hora_Conclusao_Servico'))}</p>
+        <p><b>📲 Data/Hora da Notificação de Conclusão ao Cliente:</b> {fmt_data(maq_info.get('Data_Hora_Notificacao_Conclusao'))}</p>
+        <p><b>🚚 Data/Hora de Saída da Máquina:</b> {fmt_data(maq_info.get('Data_Hora_Saida'))}</p>
+    """
+
+
+def renderizar_cronologia_texto(row_det):
+    return (
+        f"📅 **Chegada (Entrada):** {fmt_data(row_det.get('Data_Hora_Entrada'))}\n\n"
+        f"📋 **Orçamento passado pelo mecânico:** {fmt_data(row_det.get('Data_Hora_Laudo'))}\n\n"
+        f"📤 **Orçamento passado ao cliente (Secretaria):** {fmt_data(row_det.get('Data_Hora_Envio_Orcamento'))}\n\n"
+        f"✍️ **Resposta do cliente (Aprovou/Reprovou):** {fmt_data(row_det.get('Data_Hora_Resposta_Cliente'))}\n\n"
+        f"▶️ **Início do serviço:** {fmt_data(row_det.get('Data_Hora_Inicio_Servico'))}\n\n"
+        f"🏁 **Conclusão do serviço:** {fmt_data(row_det.get('Data_Hora_Conclusao_Servico'))}\n\n"
+        f"📲 **Cliente notificado da conclusão:** {fmt_data(row_det.get('Data_Hora_Notificacao_Conclusao'))}\n\n"
+        f"🚚 **Saída da máquina:** {fmt_data(row_det.get('Data_Hora_Saida'))}"
+    )
+
+
 # ---------------------------------------------------------
-# SISTEMA DE LOGIN COM SUPORTE A MÚLTIPLOS MECÂNICOS
+# SISTEMA DE LOGIN
 # ---------------------------------------------------------
 st.sidebar.title("🔐 Autenticação de Usuário")
 
 if st.session_state.usuario_logado is None:
     st.sidebar.subheader("Fazer Login no Sistema")
-    
+
     with st.sidebar.form("form_login"):
         user_input = st.text_input("Usuário")
         senha_input = st.text_input("Senha", type="password")
@@ -179,25 +271,31 @@ if st.session_state.usuario_logado is None:
         if btn_login:
             df_usuarios = carregar_dados("usuarios")
             match = df_usuarios[
-                (df_usuarios["Usuario"] == user_input.strip()) &
-                (df_usuarios["Senha"] == senha_input.strip())
+                (df_usuarios["Usuario"] == user_input.strip())
+                & (df_usuarios["Senha"] == senha_input.strip())
             ]
             if not match.empty:
                 st.session_state.usuario_logado = match.iloc[0]["Nome"]
                 st.session_state.perfil_logado = match.iloc[0]["Perfil"]
                 st.session_state.flash_sucesso = "Login efetuado com sucesso!"
+                registrar_log("LOGIN", f"Usuário '{user_input.strip()}' ({match.iloc[0]['Nome']}) entrou no sistema.")
                 st.rerun()
             else:
+                registrar_log("LOGIN_FALHA", f"Tentativa de login inválida com usuário '{user_input.strip()}'.")
                 st.error("Usuário ou senha incorretos.")
 
     st.info("👈 Digite suas credenciais para acessar o sistema.")
     st.stop()
 else:
-    st.sidebar.success(f"Conectado: **{st.session_state.usuario_logado}**\n\nPerfil: *{st.session_state.perfil_logado}*")
+    st.sidebar.success(
+        f"Conectado: **{st.session_state.usuario_logado}**\n\nPerfil: *{st.session_state.perfil_logado}*"
+    )
 
     if st.sidebar.button("Sair (Logout)"):
+        nome_saindo = st.session_state.usuario_logado
         st.session_state.usuario_logado = None
         st.session_state.perfil_logado = None
+        registrar_log("LOGOUT", f"Usuário '{nome_saindo}' encerrou a sessão.")
         st.rerun()
 
 st.sidebar.markdown("---")
@@ -206,18 +304,31 @@ st.sidebar.markdown("---")
 # CENTRAL DE NOTIFICAÇÕES (Lidas do SQL)
 # ---------------------------------------------------------
 df_maquinas_notif = carregar_dados("maquinas")
+
 notif_pendentes_sec = len(
     df_maquinas_notif[
         df_maquinas_notif["Status"].isin([
             "Aguardando Precificação (Secretaria)",
-            "Aguardando Precificação (Falta Peças no Estoque)"
+            "Aguardando Precificação (Falta Peças no Estoque)",
         ])
+    ]
+) if not df_maquinas_notif.empty else 0
+
+notif_envio_cliente_sec = len(
+    df_maquinas_notif[
+        df_maquinas_notif["Status"] == "Aguardando Envio ao Cliente"
     ]
 ) if not df_maquinas_notif.empty else 0
 
 notif_falta_pecas_sec = len(
     df_maquinas_notif[
         df_maquinas_notif["Status"] == "Aguardando Precificação (Falta Peças no Estoque)"
+    ]
+) if not df_maquinas_notif.empty else 0
+
+notif_notificar_conclusao_sec = len(
+    df_maquinas_notif[
+        df_maquinas_notif["Status"] == "Serviço Concluído (Aguardando Notificação ao Cliente)"
     ]
 ) if not df_maquinas_notif.empty else 0
 
@@ -237,11 +348,21 @@ st.sidebar.subheader("🔔 Notificações do Sistema")
 if st.session_state.perfil_logado == "Secretaria (Administração)":
     if notif_pendentes_sec > 0:
         st.sidebar.warning(f"📥 **{notif_pendentes_sec}** orçamento(s) para precificação.")
+    if notif_envio_cliente_sec > 0:
+        st.sidebar.info(f"📤 **{notif_envio_cliente_sec}** orçamento(s) aguardando confirmação de envio ao cliente.")
     if notif_falta_pecas_sec > 0:
         st.sidebar.error(f"🚨 **{notif_falta_pecas_sec}** orçamento(s) com aviso de falta de peças.")
+    if notif_notificar_conclusao_sec > 0:
+        st.sidebar.warning(f"📲 **{notif_notificar_conclusao_sec}** serviço(s) concluído(s) aguardando notificação ao cliente.")
     if notif_concluidas_sec > 0:
-        st.sidebar.success(f"🎉 **{notif_concluidas_sec}** máquina(s) concluída(s) para retirada.")
-    if notif_pendentes_sec == 0 and notif_falta_pecas_sec == 0 and notif_concluidas_sec == 0:
+        st.sidebar.success(f"🎉 **{notif_concluidas_sec}** máquina(s) notificada(s) e aguardando retirada.")
+    if (
+        notif_pendentes_sec == 0
+        and notif_envio_cliente_sec == 0
+        and notif_falta_pecas_sec == 0
+        and notif_notificar_conclusao_sec == 0
+        and notif_concluidas_sec == 0
+    ):
         st.sidebar.info("Nenhuma nova notificação pendente.")
 
 elif st.session_state.perfil_logado == "Mecânico (Oficina)":
@@ -251,6 +372,35 @@ elif st.session_state.perfil_logado == "Mecânico (Oficina)":
         st.sidebar.info("Nenhuma nova notificação.")
 
 st.sidebar.markdown("---")
+
+
+def exibir_notificacoes_mecanico_fixas():
+    """Exibe as notificações da oficina na área principal independente do submenu ativo."""
+    if st.session_state.perfil_logado != "Mecânico (Oficina)":
+        return
+
+    df_m = carregar_dados("maquinas")
+    if df_m.empty:
+        return
+
+    aprovadas = df_m[df_m["Status"] == "Cliente Aprovou (Pronto para Iniciar)"]
+    aguard_pecas = df_m[df_m["Status"] == "Aguardando Peças"]
+    em_bancada = df_m[df_m["Status"] == "Em Manutenção (Na Bancada)"]
+
+    if len(aprovadas) > 0 or len(aguard_pecas) > 0 or len(em_bancada) > 0:
+        partes = []
+        if len(aprovadas) > 0:
+            ids_ap = ", ".join(aprovadas["ID"].astype(str).tolist())
+            partes.append(f"**{len(aprovadas)}** serviço(s) aprovado(s) pronto(s) para iniciar (IDs: {ids_ap})")
+        if len(aguard_pecas) > 0:
+            ids_pc = ", ".join(aguard_pecas["ID"].astype(str).tolist())
+            partes.append(f"**{len(aguard_pecas)}** aguardando peças (IDs: {ids_pc})")
+        if len(em_bancada) > 0:
+            ids_bc = ", ".join(em_bancada["ID"].astype(str).tolist())
+            partes.append(f"**{len(em_bancada)}** em manutenção na bancada (IDs: {ids_bc})")
+
+        st.info("🔔 **Painel de Notificações da Oficina:** " + " • ".join(partes))
+
 
 # ---------------------------------------------------------
 # FUNÇÃO AUXILIAR DE BUSCA, CONSULTA E LEITOR DE QR CODE TRASEIRO
@@ -311,10 +461,10 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
 
             if codigo_lido:
                 st.success(f"🎯 QR Code Lido com Sucesso: **{codigo_lido}**")
-                
+
                 maq_encontrada = df_maq[
-                    df_maq["QR_Code"].str.contains(codigo_lido, case=False, na=False) |
-                    df_maq["ID"].str.contains(codigo_lido, case=False, na=False)
+                    df_maq["QR_Code"].str.contains(codigo_lido, case=False, na=False)
+                    | df_maq["ID"].str.contains(codigo_lido, case=False, na=False)
                 ]
 
                 if not maq_encontrada.empty:
@@ -327,17 +477,16 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
                             <p><b>👤 Cliente Proprietário:</b> {maq_info['Cliente_Nome']} (Tel: {maq_info['Telefone']})</p>
                             <p><b>🚜 Modelo do Equipamento:</b> {maq_info['Modelo']}</p>
                             <p><b>📌 Status Atual:</b> <span style="color: #d9534f; font-weight: bold;">{maq_info['Status']}</span></p>
-                            <p><b>📅 Data/Hora de Entrada:</b> {maq_info['Data_Hora_Entrada']}</p>
-                            <p><b>🏁 Data/Hora de Saída:</b> {maq_info.get('Data_Hora_Saida', 'Pendente')}</p>
                             <p><b>📝 Observações de Recepção:</b> {maq_info['Obs_Cadastro'] if maq_info['Obs_Cadastro'] else 'Nenhuma'}</p>
                             <hr>
                             <p><b>🛠️ Laudo Técnico:</b> {maq_info['Descricao_Laudo']}</p>
                             <p><b>⚠️ Anomalias Encontradas:</b> {maq_info['Anomalias']}</p>
                             <p><b>💰 Valor do Orçamento:</b> R$ {maq_info['Valor_Orcamento']:.2f}</p>
-                            <p><b>✍️ Orçamento enviado por:</b> {maq_info.get('Mecanico_Laudo', 'N/A')} | <b>⚙️ Executado por:</b> {maq_info.get('Mecanico_Execucao', 'N/A')}</p>
+                            <p><b>✍️ Orçamento enviado por:</b> {fmt_data(maq_info.get('Mecanico_Laudo'), 'N/A')} | <b>⚙️ Executado por:</b> {fmt_data(maq_info.get('Mecanico_Execucao'), 'N/A')}</p>
+                            {renderizar_cronologia_html(maq_info)}
                         </div>
                         """,
-                        unsafe_allow_html=True
+                        unsafe_allow_html=True,
                     )
                     if maq_info["Pecas_Solicitadas"]:
                         try:
@@ -345,7 +494,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
                             if pecas_lista:
                                 st.markdown("#### Peças Utilizadas / Solicitadas:")
                                 st.dataframe(pd.DataFrame(pecas_lista), use_container_width=True)
-                        except:
+                        except Exception:
                             pass
                 else:
                     st.warning(f"⚠️ O código lido ('{codigo_lido}') não corresponde a nenhuma máquina cadastrada no sistema.")
@@ -357,19 +506,21 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
     id_detalhe = st.selectbox(
         "Ou selecione o ID diretamente para ver detalhes:",
         ["-- Selecionar --"] + list(df_maq["ID"]),
-        key=f"detalhe_{titulo}"
+        key=f"detalhe_{titulo}",
     )
     if id_detalhe != "-- Selecionar --":
         row_det = df_maq[df_maq["ID"] == id_detalhe].iloc[0]
         st.info(
             f"**Equipamento:** {row_det['Modelo']} (ID: {row_det['ID']})\n\n"
             f"👤 **Cliente:** {row_det['Cliente_Nome']} | 📞 **Tel:** {row_det['Telefone']}\n\n"
-            f"📅 **Entrada:** {row_det['Data_Hora_Entrada']} | 🏁 **Saída:** {row_det.get('Data_Hora_Saida', 'Não retirada')}\n\n"
             f"📌 **Status Atual:** {row_det['Status']}\n\n"
+            f"💰 **Valor do Orçamento:** R$ {row_det['Valor_Orcamento']:.2f}\n\n"
             f"🛠️ **Laudo Técnico / Serviço:** {row_det['Descricao_Laudo']}\n\n"
             f"⚠️ **Anomalias Relatadas:** {row_det['Anomalias']}\n\n"
-            f"✍️ **Orçamento enviado por:** {row_det.get('Mecanico_Laudo', 'Não informado')} | "
-            f"⚙️ **Serviço executado por:** {row_det.get('Mecanico_Execucao', 'Não iniciado')}"
+            f"✍️ **Orçamento enviado por:** {fmt_data(row_det.get('Mecanico_Laudo'), 'Não informado')} | "
+            f"⚙️ **Serviço executado por:** {fmt_data(row_det.get('Mecanico_Execucao'), 'Não iniciado')}\n\n"
+            f"---\n\n"
+            f"{renderizar_cronologia_texto(row_det)}"
         )
         if row_det["Pecas_Solicitadas"]:
             try:
@@ -377,7 +528,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
                 if p_list:
                     st.markdown("**Peças Solicitadas no Orçamento:**")
                     st.dataframe(pd.DataFrame(p_list), use_container_width=True)
-            except:
+            except Exception:
                 pass
 
     if st.session_state.perfil_logado == "Secretaria (Administração)":
@@ -385,20 +536,25 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Laudos
         id_para_excluir = st.selectbox(
             "Selecione o ID da máquina para remover:",
             ["-- Selecionar --"] + list(df_maq["ID"]),
-            key=f"excluir_maq_{titulo}"
+            key=f"excluir_maq_{titulo}",
         )
         if id_para_excluir != "-- Selecionar --":
             if st.button("⚠️ Confirmar Exclusão desta Máquina", key=f"btn_exc_{titulo}"):
                 df_maq = df_maq[df_maq["ID"] != id_para_excluir]
                 salvar_dataframe(df_maq, "maquinas")
+                registrar_log("EXCLUIR_MAQUINA", f"Máquina ID {id_para_excluir} removida do cadastro.")
                 st.session_state.flash_sucesso = f"Máquina {id_para_excluir} removida com sucesso!"
                 st.rerun()
+
 
 # ---------------------------------------------------------
 # VISÃO 1: MECÂNICO (Dispositivo Móvel / Oficina)
 # ---------------------------------------------------------
 if st.session_state.perfil_logado == "Mecânico (Oficina)":
     st.header(f"📱 Módulo da Oficina - Mecânico: {st.session_state.usuario_logado}")
+
+    # Notificações fixas visíveis independentemente da tela/submenu selecionado
+    exibir_notificacoes_mecanico_fixas()
 
     sub_menu = st.radio(
         "Ação:",
@@ -415,9 +571,11 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
         st.subheader("📝 Registrar Chegada de Equipamento")
 
         df_cli = carregar_dados("clientes")
-        opcoes_clientes = ["-- Selecionar Cliente Existente --"] + list(
-            df_cli["Nome"] + " (" + df_cli["Telefone"] + ")"
-        ) + ["+ Cadastrar Novo Cliente"]
+        opcoes_clientes = (
+            ["-- Selecionar Cliente Existente --"]
+            + list(df_cli["Nome"] + " (" + df_cli["Telefone"] + ")")
+            + ["+ Cadastrar Novo Cliente"]
+        )
 
         cliente_sel = st.selectbox("Proprietário da Máquina:", opcoes_clientes)
 
@@ -439,13 +597,16 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                         st.error("Telefone inválido! Digite apenas números contendo o DDD (10 ou 11 dígitos).")
                     else:
                         novo_id_cli = f"CLI-{len(df_cli) + 1:03d}"
-                        novo_c = pd.DataFrame([{
-                            "ID_Cliente": novo_id_cli,
-                            "Nome": novo_nome.strip(),
-                            "Telefone": tel_valido
-                        }])
+                        novo_c = pd.DataFrame([
+                            {
+                                "ID_Cliente": novo_id_cli,
+                                "Nome": novo_nome.strip(),
+                                "Telefone": tel_valido,
+                            }
+                        ])
                         df_cli = pd.concat([df_cli, novo_c], ignore_index=True)
                         salvar_dataframe(df_cli, "clientes")
+                        registrar_log("CADASTRO_CLIENTE", f"Cliente '{novo_nome.strip()}' ({novo_id_cli}, tel {tel_valido}) cadastrado.")
                         st.session_state.flash_sucesso = f"Cliente {novo_nome} cadastrado com sucesso!"
                         st.rerun()
 
@@ -473,13 +634,9 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                 elif not modelo.strip():
                     st.error("Preencha o modelo da máquina.")
                 else:
-                    if codigo_manual.strip() != "":
-                        codigo_num = codigo_manual.strip()
-                    else:
-                        codigo_num = f"{random.randint(1000, 9999)}"
-
+                    codigo_num = codigo_manual.strip() if codigo_manual.strip() != "" else f"{random.randint(1000, 9999)}"
                     qr_gerado = f"QR-EQP-{codigo_num}"
-                    data_hora_atual = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+                    data_hora_atual = agora_str()
 
                     df_maq = carregar_dados("maquinas")
                     if not df_maq.empty and codigo_num in df_maq["ID"].values:
@@ -491,8 +648,14 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                             "ID_Cliente": id_cli_final,
                             "Cliente_Nome": nome_cli_final,
                             "Telefone": tel_cli_final,
-                            "Modelo": modelo,
+                            "Modelo": modelo.strip(),
                             "Data_Hora_Entrada": data_hora_atual,
+                            "Data_Hora_Laudo": "Pendente",
+                            "Data_Hora_Envio_Orcamento": "Pendente",
+                            "Data_Hora_Resposta_Cliente": "Pendente",
+                            "Data_Hora_Inicio_Servico": "Pendente",
+                            "Data_Hora_Conclusao_Servico": "Pendente",
+                            "Data_Hora_Notificacao_Conclusao": "Pendente",
                             "Data_Hora_Saida": "Pendente",
                             "Obs_Cadastro": obs_cadastro,
                             "Status": "Aguardando Avaliação Técnica",
@@ -505,6 +668,10 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                         }
                         df_maq = pd.concat([df_maq, pd.DataFrame([nova_linha])], ignore_index=True)
                         salvar_dataframe(df_maq, "maquinas")
+                        registrar_log(
+                            "ENTRADA_MAQUINA",
+                            f"Máquina ID {codigo_num} ({modelo.strip()}) registrada para cliente '{nome_cli_final}' em {data_hora_atual}.",
+                        )
                         st.session_state.flash_sucesso = (
                             f"Máquina cadastrada com sucesso! "
                             f"Entrada: {data_hora_atual} | Código: {codigo_num} | QR Code Gerado."
@@ -517,10 +684,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
         if df_maq.empty:
             st.info("Nenhuma máquina cadastrada para gerar etiquetas.")
         else:
-            maq_etiqueta_id = st.selectbox(
-                "Selecione a máquina para gerar a etiqueta:",
-                df_maq["ID"]
-            )
+            maq_etiqueta_id = st.selectbox("Selecione a máquina para gerar a etiqueta:", df_maq["ID"])
             maq_info = df_maq[df_maq["ID"] == maq_etiqueta_id].iloc[0]
 
             conteudo_qrcode = f"{maq_info['ID']}"
@@ -545,7 +709,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                         }}
                     }}
                 </style>
-                
+
                 <div id="etiqueta-print" style="border: 2px dashed #333; padding: 20px; border-radius: 10px; width: 320px; background-color: #fff; color: #000; text-align: center; margin-bottom: 20px;">
                     <h3 style="margin: 0; font-size: 18px;">🔧 OFICINA CONECTADA</h3>
                     <hr style="border: 1px solid #ccc; margin: 10px 0;">
@@ -558,7 +722,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                     <h2 style="margin: 0; color: #d9534f; font-size: 24px;">ID: {maq_info['ID']}</h2>
                 </div>
                 """,
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
 
             st.markdown(
@@ -567,7 +731,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                     🖨️ Imprimir Etiqueta Diretamente
                 </button>
                 """,
-                unsafe_allow_html=True
+                unsafe_allow_html=True,
             )
             st.markdown("---")
 
@@ -579,7 +743,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
             df_maq["Status"].isin([
                 "Aguardando Avaliação Técnica",
                 "Aguardando Precificação (Secretaria)",
-                "Aguardando Precificação (Falta Peças no Estoque)"
+                "Aguardando Precificação (Falta Peças no Estoque)",
             ])
         ]
 
@@ -596,14 +760,19 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                 f"**Cliente:** {maq['Cliente_Nome']} | **Modelo:** {maq['Modelo']} | **Status Atual:** {maq['Status']}"
             )
 
-            if maq["Status"] in ["Aguardando Precificação (Secretaria)", "Aguardando Precificação (Falta Peças no Estoque)"]:
+            if maq["Status"] in [
+                "Aguardando Precificação (Secretaria)",
+                "Aguardando Precificação (Falta Peças no Estoque)",
+            ]:
                 if st.button("🗑️ Excluir / Redefinir este Laudo (Corrigir Erro)"):
                     df_maq.loc[idx_row, "Descricao_Laudo"] = "Pendente"
                     df_maq.loc[idx_row, "Anomalias"] = "Nenhuma"
                     df_maq.loc[idx_row, "Pecas_Solicitadas"] = json.dumps([])
                     df_maq.loc[idx_row, "Mecanico_Laudo"] = "Pendente"
+                    df_maq.loc[idx_row, "Data_Hora_Laudo"] = "Pendente"
                     df_maq.loc[idx_row, "Status"] = "Aguardando Avaliação Técnica"
                     salvar_dataframe(df_maq, "maquinas")
+                    registrar_log("REDEFINIR_LAUDO", f"Laudo da máquina ID {eqp_id} redefinido para 'Aguardando Avaliação Técnica'.")
                     st.session_state.flash_sucesso = "Laudo redefinido com sucesso! Agora você pode preenchê-lo novamente."
                     st.rerun()
 
@@ -614,12 +783,8 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                 for _, row in df_est.iterrows()
             ]
 
-            peca_selecionada = st.selectbox(
-                "Escolha a peça do almoxarifado:", opcoes_pecas
-            )
-            qtd_peca = st.number_input(
-                "Quantidade necessária:", min_value=1, value=1, step=1
-            )
+            peca_selecionada = st.selectbox("Escolha a peça do almoxarifado:", opcoes_pecas)
+            qtd_peca = st.number_input("Quantidade necessária:", min_value=1, value=1, step=1)
 
             if "carrinho_pecas" not in st.session_state:
                 st.session_state.carrinho_pecas = []
@@ -635,9 +800,11 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                         "preco_unit": estoque_item["Preco_Unitario"],
                     }
                 )
-                
+
                 if qtd_peca > estoque_item["Quantidade"]:
-                    st.warning(f"⚠️ Aviso: A peça '{nome_peca_limpo}' está em falta no estoque (Estoque atual: {estoque_item['Quantidade']}, Pedido: {qtd_peca}).")
+                    st.warning(
+                        f"⚠️ Aviso: A peça '{nome_peca_limpo}' está em falta no estoque (Estoque atual: {estoque_item['Quantidade']}, Pedido: {qtd_peca})."
+                    )
                 else:
                     st.success(f"✅ Adicionado: {qtd_peca}x {nome_peca_limpo}")
 
@@ -653,21 +820,24 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
             st.markdown("---")
             with st.form("form_laudo", clear_on_submit=True):
-                laudo = st.text_input("Descrição Técnica do Serviço:", value=maq["Descricao_Laudo"] if maq["Descricao_Laudo"] != "Pendente" else "")
+                laudo = st.text_input(
+                    "Descrição Técnica do Serviço:",
+                    value=maq["Descricao_Laudo"] if maq["Descricao_Laudo"] != "Pendente" else "",
+                )
                 anomalias = st.text_input(
                     "Observações / Anomalias Encontradas:",
-                    value=maq["Anomalias"] if maq["Anomalias"] != "Nenhuma" else ""
+                    value=maq["Anomalias"] if maq["Anomalias"] != "Nenhuma" else "",
                 )
-                
+
                 enviar_secretaria = st.form_submit_button("Salvar e Enviar Laudo para Secretaria")
 
                 if enviar_secretaria:
-                    if not laudo:
+                    if not laudo.strip():
                         st.warning("Descreva o serviço a ser realizado.")
                     else:
                         pecas_sol = st.session_state.carrinho_pecas.copy()
                         falta_no_envio = False
-                        
+
                         for item in pecas_sol:
                             p_nome = item["peca"]
                             p_qtd = item["qtd"]
@@ -675,17 +845,31 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                             if p_qtd > est_disp:
                                 falta_no_envio = True
 
-                        df_maq.loc[idx_row, "Descricao_Laudo"] = laudo
-                        df_maq.loc[idx_row, "Anomalias"] = anomalias if anomalias else "Nenhuma"
+                        hora_laudo = agora_str()
+                        df_maq.loc[idx_row, "Descricao_Laudo"] = laudo.strip()
+                        df_maq.loc[idx_row, "Anomalias"] = anomalias.strip() if anomalias.strip() else "Nenhuma"
                         df_maq.loc[idx_row, "Pecas_Solicitadas"] = json.dumps(pecas_sol)
                         df_maq.loc[idx_row, "Mecanico_Laudo"] = st.session_state.usuario_logado
+                        df_maq.loc[idx_row, "Data_Hora_Laudo"] = hora_laudo
 
                         if falta_no_envio:
                             df_maq.loc[idx_row, "Status"] = "Aguardando Precificação (Falta Peças no Estoque)"
-                            st.session_state.flash_sucesso = "Laudo enviado com sucesso! Há peças em falta no estoque; a Secretaria foi avisada."
+                            registrar_log(
+                                "ENVIO_LAUDO_FALTA_PECAS",
+                                f"Laudo enviado para máquina ID {eqp_id} em {hora_laudo} com aviso de falta de peças.",
+                            )
+                            st.session_state.flash_sucesso = (
+                                "Laudo enviado com sucesso! Há peças em falta no estoque; a Secretaria foi avisada."
+                            )
                         else:
                             df_maq.loc[idx_row, "Status"] = "Aguardando Precificação (Secretaria)"
-                            st.session_state.flash_sucesso = f"Laudo enviado com sucesso por {st.session_state.usuario_logado}!"
+                            registrar_log(
+                                "ENVIO_LAUDO",
+                                f"Laudo enviado para máquina ID {eqp_id} em {hora_laudo}.",
+                            )
+                            st.session_state.flash_sucesso = (
+                                f"Laudo enviado com sucesso por {st.session_state.usuario_logado}!"
+                            )
 
                         salvar_dataframe(df_maq, "maquinas")
                         st.session_state.carrinho_pecas = []
@@ -699,7 +883,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
             df_maq["Status"].isin([
                 "Cliente Aprovou (Pronto para Iniciar)",
                 "Aguardando Peças",
-                "Em Manutenção (Na Bancada)"
+                "Em Manutenção (Na Bancada)",
             ])
         ]
 
@@ -710,39 +894,54 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                 with st.expander(f"Máquina ID: {row['ID']} - Cliente: {row['Cliente_Nome']} [{row['Status']}]"):
                     st.write(f"**Modelo:** {row['Modelo']}")
                     st.write(f"**Laudo:** {row['Descricao_Laudo']}")
-                    st.write(f"**Mecânico Responsável pelo Orçamento:** {row.get('Mecanico_Laudo', 'Não informado')}")
-                    if row['Anomalias'] != "Nenhuma":
+                    st.write(f"**Mecânico Responsável pelo Orçamento:** {fmt_data(row.get('Mecanico_Laudo'), 'Não informado')}")
+                    if row["Anomalias"] != "Nenhuma":
                         st.warning(f"**Anomalias:** {row['Anomalias']}")
-                    
+
                     idx_row = df_maq[df_maq["ID"] == row["ID"]].index[0]
 
                     if row["Status"] == "Aguardando Peças":
                         st.warning("⏳ Esta máquina aguarda peças no estoque para iniciar a manutenção.")
-                        if st.button(f"🔄 Verificar Estoque e Iniciar Manutenção (ID {row['ID']})", key=f"rever_pecas_{row['ID']}" ):
+                        if st.button(f"🔄 Verificar Estoque e Iniciar Manutenção (ID {row['ID']})", key=f"rever_pecas_{row['ID']}"):
+                            hora_inicio = agora_str()
                             df_maq.loc[idx_row, "Status"] = "Em Manutenção (Na Bancada)"
                             df_maq.loc[idx_row, "Mecanico_Execucao"] = st.session_state.usuario_logado
+                            df_maq.loc[idx_row, "Data_Hora_Inicio_Servico"] = hora_inicio
                             salvar_dataframe(df_maq, "maquinas")
+                            registrar_log("INICIO_SERVICO", f"Manutenção iniciada na máquina ID {row['ID']} em {hora_inicio}.")
                             st.session_state.flash_sucesso = "Peças disponíveis! Manutenção iniciada."
                             st.rerun()
 
                     elif row["Status"] == "Cliente Aprovou (Pronto para Iniciar)":
                         if st.button(f"▶️ Iniciar Manutenção (ID {row['ID']})", key=f"iniciar_{row['ID']}"):
+                            hora_inicio = agora_str()
                             df_maq.loc[idx_row, "Status"] = "Em Manutenção (Na Bancada)"
                             df_maq.loc[idx_row, "Mecanico_Execucao"] = st.session_state.usuario_logado
+                            df_maq.loc[idx_row, "Data_Hora_Inicio_Servico"] = hora_inicio
                             salvar_dataframe(df_maq, "maquinas")
+                            registrar_log("INICIO_SERVICO", f"Manutenção iniciada na máquina ID {row['ID']} em {hora_inicio}.")
                             st.session_state.flash_sucesso = f"Manutenção iniciada por {st.session_state.usuario_logado}!"
                             st.rerun()
 
                     elif row["Status"] == "Em Manutenção (Na Bancada)":
-                        st.info(f"⚙️ Em execução por: **{row.get('Mecanico_Execucao', 'N/A')}**")
+                        st.info(f"⚙️ Em execução por: **{fmt_data(row.get('Mecanico_Execucao'), 'N/A')}**")
                         if st.button(f"🏁 Concluir Serviço (ID {row['ID']})", key=f"concluir_{row['ID']}"):
-                            df_maq.loc[idx_row, "Status"] = "Serviço Concluído (Aguardando Retirada)"
+                            hora_conclusao = agora_str()
+                            df_maq.loc[idx_row, "Status"] = "Serviço Concluído (Aguardando Notificação ao Cliente)"
+                            df_maq.loc[idx_row, "Data_Hora_Conclusao_Servico"] = hora_conclusao
                             salvar_dataframe(df_maq, "maquinas")
-                            st.session_state.flash_sucesso = "Serviço concluído! Notificação enviada à Secretaria."
+                            registrar_log(
+                                "CONCLUSAO_SERVICO",
+                                f"Serviço concluído na máquina ID {row['ID']} em {hora_conclusao}. Aguardando notificação ao cliente pela Secretaria.",
+                            )
+                            st.session_state.flash_sucesso = (
+                                "Serviço concluído! A Secretaria foi avisada para notificar o cliente."
+                            )
                             st.rerun()
 
     elif sub_menu == "5. Consultar Máquinas e Laudos":
         renderizar_tabela_com_busca()
+
 
 # ---------------------------------------------------------
 # VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (Desktop)
@@ -750,9 +949,13 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 elif st.session_state.perfil_logado == "Secretaria (Administração)":
     st.header("💻 Módulo Administrativo & Financeiro (Secretaria)")
 
-    tab1, tab2, tab3, tab4 = st.tabs(
-        ["📋 Gestão de Orçamentos", "📦 Almoxarifado / Estoque", "👥 Gestão de Mecânicos", "📊 Visão Geral e Busca"]
-    )
+    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+        "📋 Gestão de Orçamentos",
+        "📦 Almoxarifado / Estoque",
+        "👥 Gestão de Mecânicos",
+        "📊 Visão Geral e Busca",
+        "📜 Logs do Sistema",
+    ])
 
     with tab1:
         st.subheader("🚨 Orçamentos com Aviso de Falta de Peças (Reposição Necessária)")
@@ -765,14 +968,16 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
             st.info("Nenhum orçamento com aviso de peças em falta.")
         else:
             for _, row in aviso_pecas_lista.iterrows():
-                with st.expander(f"⚠️ ID: {row['ID']} - Cliente: {row['Cliente_Nome']} | Modelo: {row['Modelo']} (Pode precificar e falar com o cliente)"):
+                with st.expander(
+                    f"⚠️ ID: {row['ID']} - Cliente: {row['Cliente_Nome']} | Modelo: {row['Modelo']} (Pode precificar e falar com o cliente)"
+                ):
                     st.error("O mecânico enviou o laudo, mas os itens abaixo estão em quantidade insuficiente no estoque atual:")
                     try:
                         p_list = json.loads(row["Pecas_Solicitadas"])
                         df_pecas_aviso = pd.DataFrame(p_list)
                         df_pecas_aviso.columns = ["Peça", "Quantidade Pedida", "Preço Unitário (R$)"]
                         st.dataframe(df_pecas_aviso, use_container_width=True)
-                    except:
+                    except Exception:
                         pass
 
         st.markdown("---")
@@ -781,7 +986,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         para_precificar = df_maq[
             df_maq["Status"].isin([
                 "Aguardando Precificação (Secretaria)",
-                "Aguardando Precificação (Falta Peças no Estoque)"
+                "Aguardando Precificação (Falta Peças no Estoque)",
             ])
         ]
 
@@ -790,7 +995,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         else:
             for _, row in para_precificar.iterrows():
                 with st.expander(
-                    f"Máquina ID: {row['ID']} | Cliente: {row['Cliente_Nome']} | Laudo por: {row.get('Mecanico_Laudo', 'N/A')}"
+                    f"Máquina ID: {row['ID']} | Cliente: {row['Cliente_Nome']} | Laudo por: {fmt_data(row.get('Mecanico_Laudo'), 'N/A')}"
                 ):
                     st.write(f"**Equipamento:** {row['Modelo']}")
                     st.write(f"**Laudo do Mecânico:** {row['Descricao_Laudo']}")
@@ -804,10 +1009,8 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                             df_pecas_req = pd.DataFrame(pecas)
                             df_pecas_req.columns = ["Peça", "Quantidade", "Preço Unitário (R$)"]
                             st.dataframe(df_pecas_req, use_container_width=True)
-                            custo_pecas = sum(
-                                item["qtd"] * item["preco_unit"] for item in pecas
-                            )
-                    except:
+                            custo_pecas = sum(item["qtd"] * item["preco_unit"] for item in pecas)
+                    except Exception:
                         pass
 
                     st.info(f"💰 Custo total das Peças: **R$ {custo_pecas:.2f}**")
@@ -822,40 +1025,77 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                         valor_total = custo_pecas + mao_de_obra
                         st.write(f"### Valor Final do Orçamento: **R$ {valor_total:.2f}**")
 
-                        if st.form_submit_button("Confirmar Valores e Colocar em Standby"):
+                        if st.form_submit_button("Confirmar Cálculo e Enviar para Fila de Envio ao Cliente"):
                             idx_row = df_maq[df_maq["ID"] == row["ID"]].index[0]
                             df_maq.loc[idx_row, "Valor_Orcamento"] = valor_total
-                            df_maq.loc[idx_row, "Status"] = "Standby (Aguardando Resposta do Cliente)"
+                            df_maq.loc[idx_row, "Status"] = "Aguardando Envio ao Cliente"
                             salvar_dataframe(df_maq, "maquinas")
-                            st.session_state.flash_sucesso = "Orçamento precificado e colocado em Standby para contato com o cliente!"
+                            registrar_log(
+                                "PRECIFICACAO_ORCAMENTO",
+                                f"Orçamento da máquina ID {row['ID']} precificado em R$ {valor_total:.2f} (Mão de obra: R$ {mao_de_obra:.2f}).",
+                            )
+                            st.session_state.flash_sucesso = (
+                                "Valores calculados! Confirme o envio do orçamento ao cliente na seção abaixo."
+                            )
                             st.rerun()
 
         st.markdown("---")
-        st.subheader("2. Contato com o Cliente (Aprovação)")
+        st.subheader("2. Confirmar Envio do Orçamento ao Cliente")
 
-        standby = df_maq[
-            df_maq["Status"] == "Standby (Aguardando Resposta do Cliente)"
-        ]
+        aguardando_envio = df_maq[df_maq["Status"] == "Aguardando Envio ao Cliente"]
+
+        if aguardando_envio.empty:
+            st.info("Nenhum orçamento aguardando confirmação de envio ao cliente.")
+        else:
+            for _, row in aguardando_envio.iterrows():
+                with st.expander(
+                    f"📤 ID {row['ID']} | Cliente: {row['Cliente_Nome']} | Tel: {row['Telefone']} | Total: R$ {row['Valor_Orcamento']:.2f}"
+                ):
+                    st.write(f"**Equipamento:** {row['Modelo']}")
+                    st.write(f"**Resumo do Serviço:** {row['Descricao_Laudo']}")
+                    idx_row = df_maq[df_maq["ID"] == row["ID"]].index[0]
+
+                    if st.button(f"📨 Confirmar que o Orçamento foi Enviado ao Cliente (ID {row['ID']})", key=f"env_cli_{row['ID']}"):
+                        hora_envio = agora_str()
+                        df_maq.loc[idx_row, "Data_Hora_Envio_Orcamento"] = hora_envio
+                        df_maq.loc[idx_row, "Status"] = "Standby (Aguardando Resposta do Cliente)"
+                        salvar_dataframe(df_maq, "maquinas")
+                        registrar_log(
+                            "ENVIO_ORCAMENTO_CLIENTE",
+                            f"Orçamento da máquina ID {row['ID']} (R$ {row['Valor_Orcamento']:.2f}) enviado ao cliente '{row['Cliente_Nome']}' em {hora_envio}.",
+                        )
+                        st.session_state.flash_sucesso = (
+                            f"Envio ao cliente confirmado em {hora_envio}! Orçamento em Standby."
+                        )
+                        st.rerun()
+
+        st.markdown("---")
+        st.subheader("3. Confirmar Resposta do Cliente (Aprovação ou Reprovação)")
+
+        standby = df_maq[df_maq["Status"] == "Standby (Aguardando Resposta do Cliente)"]
 
         if standby.empty:
-            st.info("Nenhum orçamento em standby no momento.")
+            st.info("Nenhum orçamento em standby aguardando resposta do cliente.")
         else:
             for _, row in standby.iterrows():
                 with st.expander(
-                    f"Cliente: {row['Cliente_Nome']} | Tel: {row['Telefone']} | Total: R$ {row['Valor_Orcamento']:.2f}"
+                    f"Cliente: {row['Cliente_Nome']} | Tel: {row['Telefone']} | Total: R$ {row['Valor_Orcamento']:.2f} | Enviado em: {fmt_data(row.get('Data_Hora_Envio_Orcamento'))}"
                 ):
                     col1, col2 = st.columns(2)
                     idx_row = df_maq[df_maq["ID"] == row["ID"]].index[0]
 
                     if col1.button("✅ Cliente APROVOU", key=f"ap_{row['ID']}"):
+                        hora_resp = agora_str()
+                        df_maq.loc[idx_row, "Data_Hora_Resposta_Cliente"] = hora_resp
+
                         try:
                             pecas_req = json.loads(row["Pecas_Solicitadas"])
-                        except:
+                        except Exception:
                             pecas_req = []
 
                         df_est = carregar_dados("estoque")
                         falta_estoque = False
-                        
+
                         for p in pecas_req:
                             p_nome = p["peca"]
                             p_qtd_pedida = p["qtd"]
@@ -871,53 +1111,112 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
 
                         if falta_estoque:
                             df_maq.loc[idx_row, "Status"] = "Aguardando Peças"
-                            st.session_state.flash_sucesso = "Cliente aprovou, mas o estoque ainda está insuficiente ('Aguardando Peças')."
+                            registrar_log(
+                                "CLIENTE_APROVOU_FALTA_PECAS",
+                                f"Cliente aprovou orçamento da máquina ID {row['ID']} em {hora_resp}, mas há falta de peças ('Aguardando Peças').",
+                            )
+                            st.session_state.flash_sucesso = (
+                                "Cliente aprovou, mas o estoque ainda está insuficiente ('Aguardando Peças')."
+                            )
                         else:
                             df_maq.loc[idx_row, "Status"] = "Cliente Aprovou (Pronto para Iniciar)"
-                            st.session_state.flash_sucesso = "Aprovado! Peças baixadas do estoque e mecânicos avisados."
-                        
+                            registrar_log(
+                                "CLIENTE_APROVOU",
+                                f"Cliente aprovou orçamento da máquina ID {row['ID']} em {hora_resp}. Pronto para iniciar.",
+                            )
+                            st.session_state.flash_sucesso = (
+                                "Aprovado! Peças baixadas do estoque e mecânicos avisados."
+                            )
+
                         salvar_dataframe(df_maq, "maquinas")
                         st.rerun()
 
-                    if col2.button("❌ Cliente RECUSOU", key=f"rec_{row['ID']}"):
+                    if col2.button("❌ Cliente REPROVOU", key=f"rec_{row['ID']}"):
+                        hora_resp = agora_str()
+                        df_maq.loc[idx_row, "Data_Hora_Resposta_Cliente"] = hora_resp
                         df_maq.loc[idx_row, "Status"] = "Orçamento Recusado"
                         salvar_dataframe(df_maq, "maquinas")
-                        st.session_state.flash_sucesso = "Orçamento marcado como recusado pelo cliente."
+                        registrar_log(
+                            "CLIENTE_REPROVOU",
+                            f"Cliente reprovou orçamento da máquina ID {row['ID']} em {hora_resp}.",
+                        )
+                        st.session_state.flash_sucesso = "Resposta registrada: orçamento reprovado pelo cliente."
                         st.rerun()
 
         st.markdown("---")
-        st.subheader("3. Máquinas com Manutenção Concluída (Contato de Retirada)")
+        st.subheader("4. Confirmar Notificação de Serviço Concluído ao Cliente")
+
+        aguard_notif_conclusao = df_maq[
+            df_maq["Status"] == "Serviço Concluído (Aguardando Notificação ao Cliente)"
+        ]
+
+        if aguard_notif_conclusao.empty:
+            st.info("Nenhum serviço concluído aguardando notificação ao cliente.")
+        else:
+            for _, row in aguard_notif_conclusao.iterrows():
+                with st.expander(
+                    f"📲 ID {row['ID']} - Cliente: {row['Cliente_Nome']} | Tel: {row['Telefone']} | Concluído em: {fmt_data(row.get('Data_Hora_Conclusao_Servico'))}"
+                ):
+                    st.write(f"**Modelo:** {row['Modelo']}")
+                    st.write(f"**Valor Total:** R$ {row['Valor_Orcamento']:.2f}")
+                    idx_row = df_maq[df_maq["ID"] == row["ID"]].index[0]
+
+                    if st.button(f"📲 Confirmar que o Cliente foi Notificado da Conclusão (ID {row['ID']})", key=f"notif_conc_{row['ID']}"):
+                        hora_notif = agora_str()
+                        df_maq.loc[idx_row, "Data_Hora_Notificacao_Conclusao"] = hora_notif
+                        df_maq.loc[idx_row, "Status"] = "Serviço Concluído (Aguardando Retirada)"
+                        salvar_dataframe(df_maq, "maquinas")
+                        registrar_log(
+                            "NOTIFICACAO_CONCLUSAO_CLIENTE",
+                            f"Cliente '{row['Cliente_Nome']}' notificado sobre conclusão do serviço da máquina ID {row['ID']} em {hora_notif}.",
+                        )
+                        st.session_state.flash_sucesso = (
+                            f"Notificação ao cliente confirmada em {hora_notif}! Máquina aguardando retirada."
+                        )
+                        st.rerun()
+
+        st.markdown("---")
+        st.subheader("5. Máquinas Notificadas Aguardando Retirada / Saída")
         concluidas = df_maq[
             df_maq["Status"] == "Serviço Concluído (Aguardando Retirada)"
         ]
         if concluidas.empty:
-            st.info("Nenhuma máquina concluída aguardando retirada.")
+            st.info("Nenhuma máquina notificada aguardando retirada.")
         else:
             for _, row in concluidas.iterrows():
                 with st.expander(f"🟢 ID {row['ID']} - Cliente: {row['Cliente_Nome']} | Pronto para Retirada"):
                     st.write(f"**Telefone para Contato:** {row['Telefone']}")
                     st.write(f"**Modelo:** {row['Modelo']}")
+                    st.write(f"**Notificado em:** {fmt_data(row.get('Data_Hora_Notificacao_Conclusao'))}")
                     st.write(f"**Valor Total a Pagar:** R$ {row['Valor_Orcamento']:.2f}")
-                    
+
                     idx_row = df_maq[df_maq["ID"] == row["ID"]].index[0]
 
-                    if st.button(f"🏁 Confirmar Retirada pelo Cliente (ID {row['ID']})", key=f"retirada_{row['ID']}"):
-                        data_hora_saida_atual = datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+                    if st.button(f"🏁 Confirmar Retirada / Saída da Máquina (ID {row['ID']})", key=f"retirada_{row['ID']}"):
+                        hora_saida = agora_str()
                         df_maq.loc[idx_row, "Status"] = "Entregue / Retirado"
-                        df_maq.loc[idx_row, "Data_Hora_Saida"] = data_hora_saida_atual
+                        df_maq.loc[idx_row, "Data_Hora_Saida"] = hora_saida
                         salvar_dataframe(df_maq, "maquinas")
-                        st.session_state.flash_sucesso = f"Retirada confirmada! Data/Hora de saída: {data_hora_saida_atual}."
+                        registrar_log(
+                            "SAIDA_MAQUINA",
+                            f"Saída da máquina ID {row['ID']} confirmada em {hora_saida} para cliente '{row['Cliente_Nome']}'.",
+                        )
+                        st.session_state.flash_sucesso = (
+                            f"Retirada confirmada! Data/Hora de saída registrada: {hora_saida}. Ciclo encerrado."
+                        )
                         st.rerun()
 
     with tab2:
         st.subheader("📦 Almoxarifado - Controle Geral de Estoque")
         df_est = carregar_dados("estoque")
-        
+
         criticos = df_est[df_est["Quantidade"] <= df_est["Minimo"]]
         if not criticos.empty:
             st.error("🚨 **ATENÇÃO: ALERTA DE ESTOQUE BAIXO!** Os seguintes itens atingiram ou estão abaixo do limite mínimo de segurança:")
             for _, c_row in criticos.iterrows():
-                st.warning(f"⚠️ Peça **{c_row['Nome']}** está com **{c_row['Quantidade']}** unidades (O mínimo recomendado é {c_row['Minimo']}).")
+                st.warning(
+                    f"⚠️ Peça **{c_row['Nome']}** está com **{c_row['Quantidade']}** unidades (O mínimo recomendado é {c_row['Minimo']})."
+                )
 
         st.dataframe(df_est, use_container_width=True)
 
@@ -931,7 +1230,10 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                 p_idx = df_est[df_est["Nome"] == peca_repor].index[0]
                 df_est.loc[p_idx, "Quantidade"] += qtd_adicionar
                 salvar_dataframe(df_est, "estoque")
-                st.session_state.flash_sucesso = f"Adicionadas {qtd_adicionar} unidades à peça '{peca_repor}' com sucesso!"
+                registrar_log("REPOSICAO_ESTOQUE", f"Adicionadas {qtd_adicionar} unidade(s) da peça '{peca_repor}'.")
+                st.session_state.flash_sucesso = (
+                    f"Adicionadas {qtd_adicionar} unidades à peça '{peca_repor}' com sucesso!"
+                )
                 st.rerun()
 
         st.markdown("---")
@@ -949,15 +1251,21 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                     st.warning("O nome da peça não pode estar vazio.")
                 else:
                     novo_id = f"PEC-{len(df_est) + 1:03d}"
-                    nova_p = pd.DataFrame([{
-                        "ID_Peca": novo_id,
-                        "Nome": nome_p.strip(),
-                        "Quantidade": qtd_p,
-                        "Minimo": min_p,
-                        "Preco_Unitario": preco_p,
-                    }])
+                    nova_p = pd.DataFrame([
+                        {
+                            "ID_Peca": novo_id,
+                            "Nome": nome_p.strip(),
+                            "Quantidade": qtd_p,
+                            "Minimo": min_p,
+                            "Preco_Unitario": preco_p,
+                        }
+                    ])
                     df_est = pd.concat([df_est, nova_p], ignore_index=True)
                     salvar_dataframe(df_est, "estoque")
+                    registrar_log(
+                        "CADASTRO_PECA",
+                        f"Peça '{nome_p.strip()}' ({novo_id}) cadastrada com qtd {qtd_p} e valor R$ {preco_p:.2f}.",
+                    )
                     st.session_state.flash_sucesso = f"Peça '{nome_p}' cadastrada com ID {novo_id}!"
                     st.rerun()
 
@@ -965,12 +1273,13 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         st.subheader("🗑️ Excluir Peça do Estoque")
         peca_para_excluir = st.selectbox(
             "Selecione a peça para remover do almoxarifado:",
-            ["-- Selecionar Peça --"] + list(df_est["Nome"])
+            ["-- Selecionar Peça --"] + list(df_est["Nome"]),
         )
         if peca_para_excluir != "-- Selecionar Peça --":
             if st.button("⚠️ Confirmar Exclusão desta Peça"):
                 df_est = df_est[df_est["Nome"] != peca_para_excluir]
                 salvar_dataframe(df_est, "estoque")
+                registrar_log("EXCLUIR_PECA", f"Peça '{peca_para_excluir}' removida do estoque.")
                 st.session_state.flash_sucesso = f"Peça '{peca_para_excluir}' removida com sucesso do estoque!"
                 st.rerun()
 
@@ -984,11 +1293,14 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         st.markdown("#### 🗑️ Excluir Perfil de Mecânico")
         mecs_para_remover = list(mecanicos_df["Nome"])
         if mecs_para_remover:
-            mec_escolhido = st.selectbox("Selecione o mecânico para remover acesso:", ["-- Selecionar --"] + mecs_para_remover)
+            mec_escolhido = st.selectbox(
+                "Selecione o mecânico para remover acesso:", ["-- Selecionar --"] + mecs_para_remover
+            )
             if mec_escolhido != "-- Selecionar --":
                 if st.button("⚠️ Confirmar Exclusão do Mecânico"):
                     df_usr = df_usr[df_usr["Nome"] != mec_escolhido]
                     salvar_dataframe(df_usr, "usuarios")
+                    registrar_log("REMOVER_MECANICO", f"Acesso do mecânico '{mec_escolhido}' removido.")
                     st.session_state.flash_sucesso = f"Acesso do mecânico '{mec_escolhido}' removido com sucesso!"
                     st.rerun()
         else:
@@ -1000,7 +1312,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
             nome_mec = st.text_input("Nome Completo do Mecânico")
             user_mec = st.text_input("Nome de Usuário (Login)")
             senha_mec = st.text_input("Senha de Acesso", type="password")
-            
+
             btn_cad_mec = st.form_submit_button("Cadastrar Novo Mecânico")
 
             if btn_cad_mec:
@@ -1019,8 +1331,47 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                     ])
                     df_usr = pd.concat([df_usr, novo_mec_df], ignore_index=True)
                     salvar_dataframe(df_usr, "usuarios")
+                    registrar_log(
+                        "CADASTRO_MECANICO",
+                        f"Mecânico '{nome_mec.strip()}' (usuário '{user_mec.strip()}') cadastrado.",
+                    )
                     st.session_state.flash_sucesso = f"Mecânico {nome_mec} cadastrado com sucesso!"
                     st.rerun()
 
     with tab4:
         renderizar_tabela_com_busca("📊 Painel Geral de Máquinas, Laudos e Consulta por Busca")
+
+    with tab5:
+        st.subheader("📜 Registro de Logs do Sistema (Somente Leitura)")
+        st.caption("Os registros de auditoria são gravados automaticamente e não podem ser alterados ou excluídos pela aplicação.")
+
+        df_logs = carregar_dados("logs")
+        if df_logs.empty:
+            st.info("Nenhum log registrado até o momento.")
+        else:
+            df_logs = df_logs.sort_values("ID_Log", ascending=False)
+            filtro_acao = st.selectbox(
+                "Filtrar por tipo de ação:",
+                ["Todas"] + sorted(df_logs["Acao"].unique().tolist()),
+            )
+            busca_log = st.text_input("Buscar nos detalhes ou usuário:")
+
+            df_log_view = df_logs.copy()
+            if filtro_acao != "Todas":
+                df_log_view = df_log_view[df_log_view["Acao"] == filtro_acao]
+            if busca_log.strip():
+                termo_l = busca_log.strip().lower()
+                df_log_view = df_log_view[
+                    df_log_view["Usuario"].str.lower().str.contains(termo_l, na=False)
+                    | df_log_view["Detalhes"].str.lower().str.contains(termo_l, na=False)
+                ]
+
+            st.dataframe(df_log_view, use_container_width=True, hide_index=True)
+
+            csv_logs = df_log_view.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="⬇️ Exportar Logs (CSV)",
+                data=csv_logs,
+                file_name=f"logs_oficina_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+            )
