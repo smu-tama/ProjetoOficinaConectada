@@ -20,6 +20,7 @@ from ui.components import exibir_galeria_imagens, fmt_valor
 TELAS_SECRETARIA = [
     "Cockpit",
     "Almoxarifado",
+    "Perfis de Mecânicos",
     "Máquinas e Passagens",
     "Logs do Sistema",
 ]
@@ -27,6 +28,7 @@ TELAS_SECRETARIA = [
 ROTULOS_SECRETARIA = {
     "Cockpit": "⚡ Cockpit & Orçamentos",
     "Almoxarifado": "📦 Almoxarifado & Estoque",
+    "Perfis de Mecânicos": "👷 Perfis de Mecânicos",
     "Máquinas e Passagens": "🛠️ Máquinas e Passagens",
     "Logs do Sistema": "📜 Logs do Sistema",
 }
@@ -519,8 +521,8 @@ def _render_almoxarifado_secretaria(logar_acao) -> None:
         """
         <div class="sec-topbar">
             <div>
-                <p class="sec-topbar-title">Almoxarifado • Entrada de Peças, Edição e Cadastro</p>
-                <p class="sec-topbar-sub">Controle de estoque mínimo, reposição rápida e alteração de peças</p>
+                <p class="sec-topbar-title">Almoxarifado • Entrada, Edição, Exclusão e Cadastro</p>
+                <p class="sec-topbar-sub">Controle de estoque mínimo, reposição rápida, alteração e remoção de peças</p>
             </div>
             <span class="sec-pill-amarelo">Estoque</span>
         </div>
@@ -549,7 +551,7 @@ def _render_almoxarifado_secretaria(logar_acao) -> None:
                 unsafe_allow_html=True,
             )
             if df_est.empty:
-                st.info("Cadastre uma peça primeiro ao lado.")
+                st.info("Cadastre uma peça primeiro abaixo.")
             else:
                 peca_entrada = st.selectbox(
                     "Selecione a peça:",
@@ -652,61 +654,275 @@ def _render_almoxarifado_secretaria(logar_acao) -> None:
                             )
                             st.rerun()
 
+    col_cad, col_exc = st.columns(2)
+
+    with col_cad:
+        with st.container(border=True):
+            st.markdown(
+                '<div class="sec-panel-header"><p class="sec-panel-title">Cadastrar Nova Peça</p></div>',
+                unsafe_allow_html=True,
+            )
+            with st.form("form_nova_peca_sec", clear_on_submit=True):
+                n_nome = st.text_input("Nome da Nova Peça")
+                c1, c2, c3 = st.columns(3)
+                n_qtd = c1.number_input(
+                    "Qtd Inicial", min_value=0, value=1, step=1
+                )
+                n_min = c2.number_input(
+                    "Mínimo", min_value=0, value=1, step=1
+                )
+                n_preco = c3.number_input(
+                    "Preço (R$)", min_value=0.0, value=10.0, step=1.0
+                )
+                if st.form_submit_button(
+                    "➕ Cadastrar Peça", use_container_width=True
+                ):
+                    if not n_nome.strip():
+                        st.error("Informe o nome da peça.")
+                    elif not df_est.empty and n_nome.strip().lower() in (
+                        df_est["Nome"]
+                        .astype(str)
+                        .str.strip()
+                        .str.lower()
+                        .values
+                    ):
+                        st.error("Já existe uma peça com esse nome.")
+                    else:
+                        prox_id = f"PEC-{len(df_est) + 1:03d}"
+                        nova_linha = {
+                            "ID_Peca": prox_id,
+                            "Nome": n_nome.strip(),
+                            "Quantidade": int(n_qtd),
+                            "Minimo": int(n_min),
+                            "Preco_Unitario": float(n_preco),
+                        }
+                        colunas_existentes = (
+                            list(df_est.columns)
+                            if not df_est.empty
+                            else list(nova_linha.keys())
+                        )
+                        linha_filtrada = {
+                            k: v
+                            for k, v in nova_linha.items()
+                            if k in colunas_existentes
+                        }
+                        df_att = pd.concat(
+                            [df_est, pd.DataFrame([linha_filtrada])],
+                            ignore_index=True,
+                        )
+                        salvar_tabela_df(df_att, "estoque")
+                        if callable(logar_acao):
+                            logar_acao(
+                                "CADASTRO_PECA",
+                                f"Nova peça '{n_nome.strip()}' cadastrada (Qtd: {int(n_qtd)}).",
+                            )
+                        st.session_state.flash_sucesso = (
+                            f"Peça '{n_nome.strip()}' cadastrada!"
+                        )
+                        st.rerun()
+
+    with col_exc:
+        with st.container(border=True):
+            st.markdown(
+                '<div class="sec-panel-header"><p class="sec-panel-title">Excluir Peça do Estoque</p></div>',
+                unsafe_allow_html=True,
+            )
+            if df_est.empty:
+                st.info("Nenhuma peça disponível para excluir.")
+            else:
+                peca_excluir = st.selectbox(
+                    "Selecione a peça para excluir:",
+                    df_est["Nome"].tolist(),
+                    key="alm_sel_excluir",
+                )
+                conf_excluir_peca = st.checkbox(
+                    "Confirmo que desejo excluir esta peça do estoque",
+                    key="alm_conf_excluir",
+                )
+                if st.button(
+                    "🗑️ Excluir Peça Selecionada",
+                    key="alm_btn_excluir",
+                    use_container_width=True,
+                ):
+                    if not conf_excluir_peca:
+                        st.warning(
+                            "Marque a caixa de confirmação antes de excluir a peça."
+                        )
+                    else:
+                        df_sem_peca = df_est[
+                            df_est["Nome"] != peca_excluir
+                        ].reset_index(drop=True)
+                        salvar_tabela_df(df_sem_peca, "estoque")
+                        if callable(logar_acao):
+                            logar_acao(
+                                "EXCLUIR_PECA",
+                                f"Peça '{peca_excluir}' excluída do estoque.",
+                            )
+                        st.session_state.flash_sucesso = (
+                            f"Peça '{peca_excluir}' excluída do estoque!"
+                        )
+                        st.rerun()
+
+
+def _render_perfis_mecanicos_secretaria(logar_acao) -> None:
+    st.markdown(
+        """
+        <div class="sec-topbar">
+            <div>
+                <p class="sec-topbar-title">Perfis de Mecânicos • Incluir e Excluir Acessos</p>
+                <p class="sec-topbar-sub">Gerenciamento de usuários com perfil de mecânico (nome, username e senha)</p>
+            </div>
+            <span class="sec-pill-amarelo">Acessos</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    df_users = carregar_tabela("usuarios").copy()
+    if df_users.empty:
+        df_users = pd.DataFrame(columns=["Nome", "Usuario", "Senha", "Perfil"])
+
+    for col_obrig in ["Nome", "Usuario", "Senha", "Perfil"]:
+        if col_obrig not in df_users.columns:
+            df_users[col_obrig] = ""
+
+    mascara_mec = (
+        df_users["Perfil"]
+        .astype(str)
+        .str.lower()
+        .str.contains("mecânico|mecanico", regex=True, na=False)
+    )
+    df_mecanicos = df_users[mascara_mec].copy()
+
     with st.container(border=True):
         st.markdown(
-            '<div class="sec-panel-header"><p class="sec-panel-title">Cadastrar Nova Peça</p></div>',
+            '<div class="sec-panel-header"><p class="sec-panel-title">Mecânicos Cadastrados</p></div>',
             unsafe_allow_html=True,
         )
-        with st.form("form_nova_peca_sec", clear_on_submit=True):
-            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-            n_nome = c1.text_input("Nome da Nova Peça")
-            n_qtd = c2.number_input("Qtd Inicial", min_value=0, value=1, step=1)
-            n_min = c3.number_input("Mínimo", min_value=0, value=1, step=1)
-            n_preco = c4.number_input(
-                "Preço Unit. (R$)", min_value=0.0, value=10.0, step=1.0
+        if df_mecanicos.empty:
+            st.info("Nenhum perfil de mecânico cadastrado no momento.")
+        else:
+            st.dataframe(
+                df_mecanicos[["Nome", "Usuario", "Senha", "Perfil"]],
+                use_container_width=True,
+                hide_index=True,
             )
-            if st.form_submit_button(
-                "➕ Cadastrar Peça", use_container_width=True
-            ):
-                if not n_nome.strip():
-                    st.error("Informe o nome da peça.")
-                elif not df_est.empty and n_nome.strip().lower() in (
-                    df_est["Nome"].astype(str).str.strip().str.lower().values
+
+    col_inc, col_rem = st.columns(2)
+
+    with col_inc:
+        with st.container(border=True):
+            st.markdown(
+                '<div class="sec-panel-header"><p class="sec-panel-title">Incluir Novo Perfil de Mecânico</p></div>',
+                unsafe_allow_html=True,
+            )
+            with st.form("form_incluir_mecanico_sec", clear_on_submit=True):
+                nome_mec = st.text_input("Nome do Mecânico")
+                username_mec = st.text_input("Username (login)")
+                senha_mec = st.text_input("Senha", type="password")
+                if st.form_submit_button(
+                    "➕ Incluir Mecânico", use_container_width=True
                 ):
-                    st.error("Já existe uma peça com esse nome.")
-                else:
-                    prox_id = f"PEC-{len(df_est) + 1:03d}"
-                    if "ID_Peca" in df_est.columns and not df_est.empty:
-                        prox_id = f"PEC-{len(df_est) + 1:03d}"
-                    nova_linha = {
-                        "ID_Peca": prox_id,
-                        "Nome": n_nome.strip(),
-                        "Quantidade": int(n_qtd),
-                        "Minimo": int(n_min),
-                        "Preco_Unitario": float(n_preco),
-                    }
-                    colunas_existentes = (
-                        list(df_est.columns)
-                        if not df_est.empty
-                        else list(nova_linha.keys())
-                    )
-                    linha_filtrada = {
-                        k: v for k, v in nova_linha.items() if k in colunas_existentes
-                    }
-                    df_att = pd.concat(
-                        [df_est, pd.DataFrame([linha_filtrada])],
-                        ignore_index=True,
-                    )
-                    salvar_tabela_df(df_att, "estoque")
-                    if callable(logar_acao):
-                        logar_acao(
-                            "CADASTRO_PECA",
-                            f"Nova peça '{n_nome.strip()}' cadastrada (Qtd: {int(n_qtd)}).",
+                    nome_limpo = nome_mec.strip()
+                    user_limpo = username_mec.strip()
+                    senha_limpa = senha_mec.strip()
+
+                    if not nome_limpo or not user_limpo or not senha_limpa:
+                        st.error(
+                            "Preencha nome, username e senha do mecânico."
                         )
-                    st.session_state.flash_sucesso = (
-                        f"Peça '{n_nome.strip()}' cadastrada!"
-                    )
-                    st.rerun()
+                    elif user_limpo.lower() in (
+                        df_users["Usuario"]
+                        .astype(str)
+                        .str.strip()
+                        .str.lower()
+                        .values
+                    ):
+                        st.error(
+                            f"O username '{user_limpo}' já está em uso!"
+                        )
+                    else:
+                        novo_user = {
+                            "Nome": nome_limpo,
+                            "Usuario": user_limpo,
+                            "Senha": senha_limpa,
+                            "Perfil": "Mecânico (Oficina)",
+                        }
+                        colunas_existentes = list(df_users.columns)
+                        linha_filtrada = {
+                            k: v
+                            for k, v in novo_user.items()
+                            if k in colunas_existentes
+                        }
+                        df_atualizado = pd.concat(
+                            [df_users, pd.DataFrame([linha_filtrada])],
+                            ignore_index=True,
+                        )
+                        salvar_tabela_df(df_atualizado, "usuarios")
+                        if callable(logar_acao):
+                            logar_acao(
+                                "INCLUIR_PERFIL_MECANICO",
+                                f"Perfil de mecânico '{nome_limpo}' (username: '{user_limpo}') incluído.",
+                            )
+                        st.session_state.flash_sucesso = (
+                            f"Mecânico '{nome_limpo}' (@{user_limpo}) incluído com sucesso!"
+                        )
+                        st.rerun()
+
+    with col_rem:
+        with st.container(border=True):
+            st.markdown(
+                '<div class="sec-panel-header"><p class="sec-panel-title">Excluir Perfil de Mecânico</p></div>',
+                unsafe_allow_html=True,
+            )
+            if df_mecanicos.empty:
+                st.info("Nenhum perfil de mecânico disponível para excluir.")
+            else:
+                opcoes_mec = [
+                    f"{r['Nome']} (@{r['Usuario']})"
+                    for _, r in df_mecanicos.iterrows()
+                ]
+                mec_sel_txt = st.selectbox(
+                    "Selecione o mecânico:",
+                    opcoes_mec,
+                    key="sec_mec_sel_excluir",
+                )
+                idx_op = opcoes_mec.index(mec_sel_txt)
+                row_mec = df_mecanicos.iloc[idx_op]
+                user_alvo = str(row_mec["Usuario"]).strip()
+                nome_alvo = str(row_mec["Nome"]).strip()
+
+                conf_excluir_mec = st.checkbox(
+                    "Confirmo que desejo excluir este perfil de mecânico",
+                    key="sec_mec_conf_excluir",
+                )
+                if st.button(
+                    "🗑️ Excluir Perfil de Mecânico",
+                    key="sec_mec_btn_excluir",
+                    use_container_width=True,
+                ):
+                    if not conf_excluir_mec:
+                        st.warning(
+                            "Marque a caixa de confirmação antes de excluir o perfil."
+                        )
+                    else:
+                        mascara_manter = ~(
+                            (df_users["Usuario"].astype(str).str.strip() == user_alvo)
+                            & (df_users["Nome"].astype(str).str.strip() == nome_alvo)
+                        )
+                        df_restante = df_users[mascara_manter].reset_index(
+                            drop=True
+                        )
+                        salvar_tabela_df(df_restante, "usuarios")
+                        if callable(logar_acao):
+                            logar_acao(
+                                "EXCLUIR_PERFIL_MECANICO",
+                                f"Perfil de mecânico '{nome_alvo}' (username: '{user_alvo}') excluído.",
+                            )
+                        st.session_state.flash_sucesso = (
+                            f"Perfil de '{nome_alvo}' (@{user_alvo}) excluído!"
+                        )
+                        st.rerun()
 
 
 def _render_maquinas_passagens_secretaria(df_pass_ativas) -> None:
@@ -816,6 +1032,8 @@ def renderizar_visao_secretaria(
 
     if tela_atual == "Almoxarifado":
         _render_almoxarifado_secretaria(logar_acao=logar_acao)
+    elif tela_atual == "Perfis de Mecânicos":
+        _render_perfis_mecanicos_secretaria(logar_acao=logar_acao)
     elif tela_atual == "Máquinas e Passagens":
         _render_maquinas_passagens_secretaria(dados_passagens)
     elif tela_atual == "Logs do Sistema":
