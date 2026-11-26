@@ -291,12 +291,24 @@ def renderizar_grade_botoes_inicial(
 
 
 def renderizar_barra_navegacao_ativa(
-    opcoes_telas: list[str],
-    chave_estado: str,
-    rotulos_curtos: dict[str, str],
+    opcoes_telas: list[str] | None = None,
+    chave_estado: str | None = None,
+    rotulos_curtos: dict[str, str] | None = None,
     is_mobile: bool = False,
 ) -> None:
     """Renderiza navegação enxuta sem empilhar botões no mobile."""
+    perfil = str(st.session_state.get("perfil_logado", ""))
+
+    if not chave_estado:
+        chave_estado = (
+            "tela_secretaria" if "Secretaria" in perfil else "tela_mecanico"
+        )
+
+    if opcoes_telas is None:
+        opcoes_telas = []
+    if rotulos_curtos is None:
+        rotulos_curtos = {}
+
     tela_atual = st.session_state.get(chave_estado, "Início")
 
     if tela_atual == "Início":
@@ -322,18 +334,20 @@ def renderizar_barra_navegacao_ativa(
     ):
         st.session_state[chave_estado] = "Início"
         st.rerun()
-    cols = c_nav.columns(len(opcoes_telas))
-    for idx, nome_tela in enumerate(opcoes_telas):
-        ativa = nome_tela == tela_atual
-        rotulo = (
-            f"🟡 {rotulos_curtos.get(nome_tela, nome_tela)}"
-            if ativa
-            else rotulos_curtos.get(nome_tela, nome_tela)
-        )
-        if cols[idx].button(
-            rotulo,
-            key=f"top_nav_{chave_estado}_{idx}",
-            use_container_width=True,
-        ):
-            st.session_state[chave_estado] = nome_tela
-            st.rerun()
+
+    if opcoes_telas:
+        cols = c_nav.columns(len(opcoes_telas))
+        for idx, nome_tela in enumerate(opcoes_telas):
+            ativa = nome_tela == tela_atual
+            rotulo = (
+                f"🟡 {rotulos_curtos.get(nome_tela, nome_tela)}"
+                if ativa
+                else rotulos_curtos.get(nome_tela, nome_tela)
+            )
+            if cols[idx].button(
+                rotulo,
+                key=f"top_nav_{chave_estado}_{idx}",
+                use_container_width=True,
+            ):
+                st.session_state[chave_estado] = nome_tela
+                st.rerun()
