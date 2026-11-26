@@ -10,6 +10,11 @@ from services.fluxo_service import (
 )
 from ui.components import exibir_galeria_imagens, fmt_valor
 
+from repositories.oficina_repo import carregar_tabela, obter_visao_consolidada
+from ui.navegacao import (
+    renderizar_barra_navegacao_ativa,
+    renderizar_grade_botoes_inicial,
+)
 
 def _render_kpi_card(
     icone: str,
@@ -397,3 +402,18 @@ def renderizar_cockpit_secretaria(
         _render_cockpit_mobile(df_pass_ativas, logar_acao)
     else:
         _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao)
+
+def renderizar_visao_secretaria(is_mobile: bool, logar_acao) -> None:
+    """Renderiza a visão principal da Secretaria."""
+    if "tela_secretaria" not in st.session_state:
+        st.session_state.tela_secretaria = "Início"
+
+    df_pass_ativas = obter_visao_consolidada()
+    df_est = carregar_tabela("estoque")
+
+    renderizar_cockpit_secretaria(
+        df_pass_ativas=df_pass_ativas,
+        df_est=df_est,
+        is_mobile=is_mobile,
+        logar_acao=logar_acao,
+    )
