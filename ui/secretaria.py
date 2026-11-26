@@ -1,5 +1,6 @@
 import streamlit as st
 
+from repositories.oficina_repo import carregar_tabela, obter_visao_consolidada
 from services.fluxo_service import (
     calcular_custo_pecas_json,
     confirmar_saida_maquina,
@@ -10,23 +11,30 @@ from services.fluxo_service import (
 )
 from ui.components import exibir_galeria_imagens, fmt_valor
 
-from repositories.oficina_repo import carregar_tabela, obter_visao_consolidada
-from ui.navegacao import (
-    renderizar_barra_navegacao_ativa,
-    renderizar_grade_botoes_inicial,
-)
+STATUS_FILA_SECRETARIA = [
+    "Aguardando Precificação (Falta Peças no Estoque)",
+    "Aguardando Precificação (Secretaria)",
+    "Aguardando Envio ao Cliente",
+    "Standby (Aguardando Resposta do Cliente)",
+    "Serviço Concluído (Aguardando Notificação ao Cliente)",
+    "Serviço Concluído (Aguardando Retirada)",
+]
+
 
 def _render_kpi_card(
     icone: str,
     valor: str,
     label: str,
     tag: str,
+    pct_barra: int = 50,
     variante: str = "azul",
 ) -> str:
     borda_classe = (
         "destaque-amarelo" if variante == "amarelo" else "destaque-azul"
     )
     icone_classe = "amarelo" if variante == "amarelo" else ""
+    cor_barra = "#F5B700" if variante == "amarelo" else "#1D5FA7"
+    largura_segura = max(8, min(100, int(pct_barra)))
     return f"""
         <div class="sec-kpi-card {borda_classe}">
             <div class="sec-kpi-top">
@@ -35,11 +43,15 @@ def _render_kpi_card(
             </div>
             <div class="sec-kpi-valor">{valor}</div>
             <div class="sec-kpi-label">{label}</div>
+            <div class="sec-mini-track">
+                <div class="sec-mini-fill" style="width: {largura_segura}%; background: {cor_barra};"></div>
+            </div>
         </div>
     """
 
 
 def _render_kpi_row_desktop(df_pass_ativas, df_est) -> None:
+    total_ativas = max(len(df_pass_ativas), 1)
     aguardando_prec = len(
         df_pass_ativas[
             df_pass_ativas["Status"].isin([
@@ -66,6 +78,7 @@ def _render_kpi_row_desktop(df_pass_ativas, df_est) -> None:
         if not df_est.empty
         else 0
     )
+    total_est = max(len(df_est), 1)
 
     c1, c2, c3, c4 = st.columns(4)
     c1.markdown(
@@ -74,6 +87,7 @@ def _render_kpi_row_desktop(df_pass_ativas, df_est) -> None:
             str(aguardando_prec),
             "Orçamentos p/ Precificar",
             "Fila",
+            pct_barra=int((aguardando_prec / total_ativas) * 100),
             variante="amarelo",
         ),
         unsafe_allow_html=True,
@@ -84,6 +98,7 @@ def _render_kpi_row_desktop(df_pass_ativas, df_est) -> None:
             str(aguardando_resp),
             "Aguardando Cliente",
             "Standby",
+            pct_barra=int((aguardando_resp / total_ativas) * 100),
             variante="azul",
         ),
         unsafe_allow_html=True,
@@ -94,6 +109,7 @@ def _render_kpi_row_desktop(df_pass_ativas, df_est) -> None:
             str(prontas_retirada),
             "Concluídas / Retirada",
             "Entrega",
+            pct_barra=int((prontas_retirada / total_ativas) * 100),
             variante="amarelo",
         ),
         unsafe_allow_html=True,
@@ -104,8 +120,35 @@ def _render_kpi_row_desktop(df_pass_ativas, df_est) -> None:
             str(pecas_criticas),
             "Estoque no Mínimo",
             "Almoxarifado",
+            pct_barra=int((pecas_criticas / total_est) * 100),
             variante="azul",
         ),
+        unsafe_allow_html=True,
+    )
+
+
+def _render_anel_status_desktop(status_atual: str) -> None:
+    mapa_progresso = {
+        "Aguardando Precificação (Secretaria)": 25,
+        "Aguardando Precificação (Falta Peças no Estoque)": 25,
+        "Aguardando Envio ao Cliente": 45,
+        "Standby (Aguardando Resposta do Cliente)": 65,
+        "Serviço Concluído (Aguardando Notificação ao Cliente)": 85,
+        "Serviço Concluído (Aguardando Retirada)": 95,
+    }
+    pct = mapa_progresso.get(str(status_atual), 50)
+    st.markdown(
+        f"""
+        <div class="sec-ring-box">
+            <div class="sec-ring-circle" style="background: conic-gradient(#F5B700 {pct}%, #EAF2FC {pct}% 100%);">
+                <div class="sec-ring-inner">{pct}%</div>
+            </div>
+            <div class="sec-ring-meta">
+                <div class="sec-ring-label">Etapa do Fluxo</div>
+                <div class="sec-ring-status">{status_atual}</div>
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
@@ -219,15 +262,9 @@ def _render_cockpit_mobile(df_pass_ativas, logar_acao) -> None:
         unsafe_allow_html=True,
     )
 
-    status_acao = [
-        "Aguardando Precificação (Falta Peças no Estoque)",
-        "Aguardando Precificação (Secretaria)",
-        "Aguardando Envio ao Cliente",
-        "Standby (Aguardando Resposta do Cliente)",
-        "Serviço Concluído (Aguardando Notificação ao Cliente)",
-        "Serviço Concluído (Aguardando Retirada)",
-    ]
-    fila = df_pass_ativas[df_pass_ativas["Status"].isin(status_acao)].copy()
+    fila = df_pass_ativas[
+        df_pass_ativas["Status"].isin(STATUS_FILA_SECRETARIA)
+    ].copy()
     if fila.empty:
         st.success("✅ Nenhuma pendência na fila no momento!")
         return
@@ -275,31 +312,34 @@ def _render_cockpit_mobile(df_pass_ativas, logar_acao) -> None:
 
 
 def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
+    soma_orcamentos = (
+        float(df_pass_ativas["Valor_Orcamento"].fillna(0).sum())
+        if not df_pass_ativas.empty and "Valor_Orcamento" in df_pass_ativas.columns
+        else 0.0
+    )
+
     st.markdown(
-        """
+        f"""
         <div class="sec-topbar">
             <div>
                 <p class="sec-topbar-title">Painel da Secretaria • Gestão de Fluxo e Orçamentos</p>
                 <p class="sec-topbar-sub">Acompanhamento de passagens, aprovação de clientes, retirada e estoque</p>
             </div>
-            <span class="sec-pill-amarelo">Visão Desktop</span>
+            <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                <span class="sec-pill-azul">Em aberto: {fmt_valor(soma_orcamentos)}</span>
+                <span class="sec-pill-amarelo">Visão Desktop</span>
+            </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
     _render_kpi_row_desktop(df_pass_ativas, df_est)
-    st.markdown("<div style='height: 10px;'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height: 12px;'></div>", unsafe_allow_html=True)
 
-    status_acao = [
-        "Aguardando Precificação (Falta Peças no Estoque)",
-        "Aguardando Precificação (Secretaria)",
-        "Aguardando Envio ao Cliente",
-        "Standby (Aguardando Resposta do Cliente)",
-        "Serviço Concluído (Aguardando Notificação ao Cliente)",
-        "Serviço Concluído (Aguardando Retirada)",
-    ]
-    fila = df_pass_ativas[df_pass_ativas["Status"].isin(status_acao)].copy()
+    fila = df_pass_ativas[
+        df_pass_ativas["Status"].isin(STATUS_FILA_SECRETARIA)
+    ].copy()
 
     col_esq, col_dir = st.columns([1.35, 1])
 
@@ -329,28 +369,7 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
                     ],
                     use_container_width=True,
                     hide_index=True,
-                    height=250,
-                )
-
-        with st.container(border=True):
-            st.markdown(
-                """
-                <div class="sec-panel-header">
-                    <p class="sec-panel-title">Resumo do Almoxarifado</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            if df_est.empty:
-                st.info("Nenhuma peça cadastrada.")
-            else:
-                st.dataframe(
-                    df_est[
-                        ["ID_Peca", "Nome", "Quantidade", "Minimo", "Preco_Unitario"]
-                    ],
-                    use_container_width=True,
-                    hide_index=True,
-                    height=160,
+                    height=265,
                 )
 
     with col_dir:
@@ -375,6 +394,8 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
                 )
                 row = fila.iloc[opcoes_pend.index(sel_pend)]
 
+                _render_anel_status_desktop(row["Status"])
+
                 st.caption(
                     f"Máquina: **{row['Modelo']}** • Orçamento atual: **{fmt_valor(row['Valor_Orcamento'])}**"
                 )
@@ -394,6 +415,56 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
                     row, is_mobile=False, logar_acao=logar_acao, prefixo="desk"
                 )
 
+    col_inf_esq, col_inf_dir = st.columns(2)
+
+    with col_inf_esq:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div class="sec-panel-header">
+                    <p class="sec-panel-title">Resumo do Almoxarifado</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if df_est.empty:
+                st.info("Nenhuma peça cadastrada.")
+            else:
+                st.dataframe(
+                    df_est[
+                        ["ID_Peca", "Nome", "Quantidade", "Minimo", "Preco_Unitario"]
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                    height=175,
+                )
+
+    with col_inf_dir:
+        with st.container(border=True):
+            st.markdown(
+                """
+                <div class="sec-panel-header">
+                    <p class="sec-panel-title">Panorama de Aprovação e Retirada</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            if df_pass_ativas.empty or "Status" not in df_pass_ativas.columns:
+                st.info("Nenhuma passagem ativa no momento.")
+            else:
+                resumo_st = (
+                    df_pass_ativas["Status"]
+                    .value_counts()
+                    .reset_index()
+                )
+                resumo_st.columns = ["Status", "Quantidade"]
+                st.dataframe(
+                    resumo_st,
+                    use_container_width=True,
+                    hide_index=True,
+                    height=175,
+                )
+
 
 def renderizar_cockpit_secretaria(
     df_pass_ativas, df_est, is_mobile: bool, logar_acao
@@ -402,6 +473,7 @@ def renderizar_cockpit_secretaria(
         _render_cockpit_mobile(df_pass_ativas, logar_acao)
     else:
         _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao)
+
 
 def renderizar_visao_secretaria(
     is_mobile: bool = False,
