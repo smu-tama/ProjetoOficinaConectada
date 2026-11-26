@@ -1,21 +1,19 @@
+import random
+
 import pandas as pd
 import streamlit as st
 
-from ui.navegacao import (
-    renderizar_barra_navegacao_ativa,
-    renderizar_grade_botoes_inicial,
-)
-
+from database.connection import agora_str
 from repositories.oficina_repo import (
     carregar_tabela,
     obter_visao_consolidada,
+    salvar_tabela_df,
 )
 from services.fluxo_service import (
     abrir_nova_passagem_com_fotos,
-    cadastrar_cliente,
-    cadastrar_maquina_fluxo,
     concluir_servico_passagem,
     iniciar_servico_passagem,
+    obter_passagem_ativa_maquina,
     redefinir_laudo_passagem,
     salvar_laudo_passagem,
 )
@@ -28,6 +26,7 @@ from ui.components import (
     renderizar_visao_historica_cliente,
     validar_telefone,
 )
+from ui.navegacao import renderizar_grade_botoes_inicial
 
 TELAS_MECANICO = [
     "Entrada / Passagens",
@@ -92,10 +91,7 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
     df_cli = carregar_tabela("clientes")
     opcoes_clientes = (
         ["-- Selecionar Cliente Existente --"]
-        + [
-            f"{r['ID_Cliente']} — {r['Nome']} ({r['Telefone']})"
-            for _, r in df_cli.iterrows()
-        ]
+        + list(df_cli["Nome"] + " (" + df_cli["Telefone"] + ")")
         + ["+ Cadastrar Novo Cliente"]
     )
     cliente_sel = st.selectbox("Proprietário da Máquina:", opcoes_clientes)
@@ -116,16 +112,30 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
                         "Telefone inválido! Digite 10 ou 11 dígitos com DDD."
                     )
                 else:
-                    cadastrar_cliente(novo_nome, tel_valido, logar_acao)
+                    novo_id_cli = f"CLI-{len(df_cli) + 1:03d}"
+                    novo_c = pd.DataFrame([
+                        {
+                            "ID_Cliente": novo_id_cli,
+                            "Nome": novo_nome.strip(),
+                            "Telefone": tel_valido,
+                        }
+                    ])
+                    salvar_tabela_df(
+                        pd.concat([df_cli, novo_c], ignore_index=True),
+                        "clientes",
+                    )
+                    logar_acao(
+                        "CADASTRO_CLIENTE",
+                        f"Cliente '{novo_nome.strip()}' ({novo_id_cli}) cadastrado.",
+                    )
                     st.session_state.flash_sucesso = (
-                        f"Cliente {novo_nome.strip()} cadastrado!"
+                        f"Cliente {novo_nome} cadastrado!"
                     )
                     st.rerun()
     elif cliente_sel != "-- Selecionar Cliente Existente --":
-        id_cli_sel = cliente_sel.split(" — ")[0]
-        cli_row = df_cli[df_cli["ID_Cliente"].astype(str) == id_cli_sel].iloc[0]
+        nome_cli_final = cliente_sel.split(" (")[0]
+        cli_row = df_cli[df_cli["Nome"] == nome_cli_final].iloc[0]
         id_cli_final = cli_row["ID_Cliente"]
-        nome_cli_final = cli_row["Nome"]
         tel_cli_final = cli_row["Telefone"]
 
     st.markdown("---")
@@ -158,29 +168,66 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
                 elif not modelo.strip():
                     st.error("Preencha o modelo da máquina.")
                 else:
-                    ok, msg_ou_cod, id_pass = cadastrar_maquina_fluxo(
-                        id_cliente=id_cli_final,
-                        cliente_nome=nome_cli_final,
-                        telefone=tel_cli_final,
-                        modelo=modelo,
-                        codigo_manual=codigo_manual,
-                        obs_cadastro=obs_cadastro,
-                        fotos_json=serializar_imagens(fotos_cadastro),
-                        abrir_passagem_agora=abrir_passagem_agora,
-                        logar_acao_fn=logar_acao,
+                    codigo_num = (
+                        codigo_manual.strip()
+                        or f"{random.randint(1000, 9999)}"
                     )
-                    if not ok:
-                        st.error(msg_ou_cod)
+                    df_maq = carregar_tabela("maquinas")
+                    if (
+                        not df_maq.empty
+                        and codigo_num in df_maq["ID"].astype(str).values
+                    ):
+                        st.error(
+                            f"Já existe máquina com o código {codigo_num}!"
+                        )
                     else:
-                        if id_pass is not None:
-                            st.session_state.flash_sucesso = (
-                                f"Máquina ID {msg_ou_cod} cadastrada e passagem #{id_pass} aberta!"
+                        data_hora_atual = agora_str()
+                        nova_maq = {
+                            "ID": str(codigo_num),
+                            "QR_Code": f"QR-EQP-{codigo_num}",
+                            "ID_Cliente": id_cli_final,
+                            "Cliente_Nome": nome_cli_final,
+                            "Telefone": tel_cli_final,
+                            "Modelo": modelo.strip(),
+                            "Data_Hora_Cadastro": data_hora_atual,
+                            "Obs_Cadastro": obs_cadastro,
+                            "Fotos_Cadastro": serializar_imagens(
+                                fotos_cadastro
+                            ),
+                        }
+                        salvar_tabela_df(
+                            pd.concat(
+                                [df_maq, pd.DataFrame([nova_maq])],
+                                ignore_index=True,
+                            ),
+                            "maquinas",
+                        )
+                        if abrir_passagem_agora:
+                            ok_pass, msg_pass, id_pass = (
+                                abrir_nova_passagem_com_fotos(
+                                    str(codigo_num), "[]", logar_acao
+                                )
                             )
+                            if not ok_pass:
+                                st.error(msg_pass)
+                            else:
+                                logar_acao(
+                                    "ENTRADA_MAQUINA_PASSAGEM",
+                                    f"Máquina ID {codigo_num} cadastrada com passagem #{id_pass}.",
+                                )
+                                st.session_state.flash_sucesso = (
+                                    f"Máquina ID {codigo_num} cadastrada e passagem #{id_pass} aberta!"
+                                )
+                                st.rerun()
                         else:
-                            st.session_state.flash_sucesso = (
-                                f"Máquina ID {msg_ou_cod} cadastrada!"
+                            logar_acao(
+                                "CADASTRO_MAQUINA_SEM_PASSAGEM",
+                                f"Máquina ID {codigo_num} cadastrada sem passagem aberta.",
                             )
-                        st.rerun()
+                            st.session_state.flash_sucesso = (
+                                f"Máquina ID {codigo_num} cadastrada!"
+                            )
+                            st.rerun()
     else:
         df_maq_exist = carregar_tabela("maquinas")
         if df_maq_exist.empty:
@@ -199,9 +246,9 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
             ]
             maq_sel = st.selectbox("Selecione a Máquina:", opcoes_maq)
             id_maq_sel = maq_sel.split(" — ")[0]
-            row_maq_sel = df_maq_exist[
-                df_maq_exist["ID"].astype(str) == str(id_maq_sel)
-            ].iloc[0]
+            row_maq_sel = df_maq_exist[df_maq_exist["ID"] == id_maq_sel].iloc[
+                0
+            ]
 
             exibir_galeria_imagens(
                 row_maq_sel.get("Fotos_Cadastro"),
@@ -214,22 +261,32 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
                 is_mobile=is_mobile,
             )
 
-            fotos_nova_pass = st.file_uploader(
-                "📷 Anexar Fotos nesta Nova Passagem (opcional):",
-                type=["png", "jpg", "jpeg", "webp"],
-                accept_multiple_files=True,
-                key="upload_fotos_nova_passagem",
-            )
-            if st.button("➕ Abrir Nova Passagem", use_container_width=True):
-                id_pass, _ = abrir_nova_passagem_com_fotos(
-                    id_maq_sel,
-                    serializar_imagens(fotos_nova_pass),
-                    logar_acao,
+            passagem_ativa = obter_passagem_ativa_maquina(id_maq_sel)
+            if passagem_ativa is not None:
+                st.warning(
+                    f"⚠️ Esta máquina já possui a passagem **#{passagem_ativa.get('ID_Passagem')}** em aberto "
+                    f"(*{passagem_ativa.get('Status')}*). Encerre essa passagem antes de abrir uma nova."
                 )
-                st.session_state.flash_sucesso = (
-                    f"Nova passagem #{id_pass} aberta para máquina {id_maq_sel}!"
+            else:
+                fotos_nova_pass = st.file_uploader(
+                    "📷 Anexar Fotos nesta Nova Passagem (opcional):",
+                    type=["png", "jpg", "jpeg", "webp"],
+                    accept_multiple_files=True,
+                    key="upload_fotos_nova_passagem",
                 )
-                st.rerun()
+                if st.button("➕ Abrir Nova Passagem", use_container_width=True):
+                    ok_pass, msg_pass, id_pass = abrir_nova_passagem_com_fotos(
+                        id_maq_sel,
+                        serializar_imagens(fotos_nova_pass),
+                        logar_acao,
+                    )
+                    if not ok_pass:
+                        st.error(msg_pass)
+                    else:
+                        st.session_state.flash_sucesso = (
+                            f"Nova passagem #{id_pass} aberta para máquina {id_maq_sel}!"
+                        )
+                        st.rerun()
 
 
 def _render_etiqueta_qr() -> None:
@@ -240,9 +297,7 @@ def _render_etiqueta_qr() -> None:
         return
 
     maq_etiqueta_id = st.selectbox("Selecione a máquina:", df_maq["ID"])
-    maq_info = df_maq[
-        df_maq["ID"].astype(str) == str(maq_etiqueta_id)
-    ].iloc[0]
+    maq_info = df_maq[df_maq["ID"] == maq_etiqueta_id].iloc[0]
     qr_b64 = gerar_qrcode_base64(str(maq_info["ID"]))
     st.markdown(
         f"""
@@ -478,10 +533,13 @@ def _render_execucao(is_mobile: bool, logar_acao) -> None:
                     )
                     st.session_state.flash_sucesso = "Serviço concluído!"
                     st.rerun()
+
+
 def renderizar_visao_mecanico(
     is_mobile: bool = False,
     logar_acao=None,
     render_nav=None,
+    render_grade=None,
     **kwargs,
 ) -> None:
     """Renderiza o hub e as telas operacionais do perfil Mecânico."""
@@ -489,18 +547,32 @@ def renderizar_visao_mecanico(
         st.session_state.tela_mecanico = "Início"
 
     if callable(render_nav):
-        render_nav()
+        render_nav(
+            TELAS_MECANICO,
+            "tela_mecanico",
+            ROTULOS_MECANICO,
+            is_mobile=is_mobile,
+        )
 
     tela_atual = st.session_state.tela_mecanico
 
     if tela_atual == "Início":
-        renderizar_grade_botoes_inicial(
-            modulos_config=MODULOS_MECANICO_HUB,
-            chave_estado="tela_mecanico",
-            titulo_hub="🔧 Central da Oficina — Mecânico",
-            subtitulo_hub="Selecione um módulo para registrar entradas, laudos ou execuções",
-            is_mobile=is_mobile,
-        )
+        if callable(render_grade):
+            render_grade(
+                modulos_config=MODULOS_MECANICO_HUB,
+                chave_estado="tela_mecanico",
+                titulo_hub="🔧 Central da Oficina — Mecânico",
+                subtitulo_hub="Selecione um módulo para registrar entradas, laudos ou execuções",
+                is_mobile=is_mobile,
+            )
+        else:
+            renderizar_grade_botoes_inicial(
+                modulos_config=MODULOS_MECANICO_HUB,
+                chave_estado="tela_mecanico",
+                titulo_hub="🔧 Central da Oficina — Mecânico",
+                subtitulo_hub="Selecione um módulo para registrar entradas, laudos ou execuções",
+                is_mobile=is_mobile,
+            )
         return
 
     if tela_atual == "Entrada / Passagens":

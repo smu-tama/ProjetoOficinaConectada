@@ -11,6 +11,31 @@ from repositories.oficina_repo import (
     salvar_tabela_df,
 )
 
+STATUS_PASSAGEM_ENCERRADA = {
+    "Entregue / Retirado",
+    "Orçamento Recusado",
+}
+
+
+def obter_passagem_ativa_maquina(id_maquina: str) -> dict | None:
+    """Retorna a primeira passagem ainda em aberto para a máquina, ou None."""
+    df_pass = carregar_tabela("passagens_oficina")
+    if df_pass.empty:
+        return None
+
+    col_id = "ID_Maquina" if "ID_Maquina" in df_pass.columns else "ID"
+    if col_id not in df_pass.columns:
+        return None
+
+    ativas = df_pass[
+        (df_pass[col_id].astype(str) == str(id_maquina).strip())
+        & (~df_pass["Status"].isin(STATUS_PASSAGEM_ENCERRADA))
+    ]
+    if ativas.empty:
+        return None
+
+    return ativas.iloc[0].to_dict()
+
 
 def cadastrar_cliente(nome: str, telefone_validado: str, logar_acao_fn) -> str:
     """Cadastra novo cliente com próximo ID sequencial CLI-XXX."""
@@ -60,6 +85,17 @@ def cadastrar_maquina_fluxo(
     if not df_maq.empty and codigo_num in df_maq["ID"].astype(str).values:
         return False, f"Já existe uma máquina cadastrada com o código {codigo_num}!", None
 
+    if abrir_passagem_agora:
+        passagem_aberta = obter_passagem_ativa_maquina(str(codigo_num))
+        if passagem_aberta is not None:
+            id_aberta = passagem_aberta.get("ID_Passagem", "?")
+            st_aberta = passagem_aberta.get("Status", "Em andamento")
+            return (
+                False,
+                f"A máquina {codigo_num} já possui a passagem #{id_aberta} aberta ({st_aberta}). Encerre antes de abrir outra.",
+                None,
+            )
+
     data_hora_atual = agora_str()
     nova_maq = {
         "ID": str(codigo_num),
@@ -96,7 +132,21 @@ def abrir_nova_passagem_com_fotos(
     id_maquina: str,
     fotos_json: str,
     logar_acao_fn,
-) -> tuple[int, str]:
+) -> tuple[bool, str, int | None]:
+    """Abre nova passagem apenas se não houver passagem em aberto para a máquina.
+
+    Retorna (sucesso, mensagem_ou_hora, id_passagem_ou_none).
+    """
+    passagem_aberta = obter_passagem_ativa_maquina(str(id_maquina))
+    if passagem_aberta is not None:
+        id_aberta = passagem_aberta.get("ID_Passagem", "?")
+        st_aberta = passagem_aberta.get("Status", "Em andamento")
+        return (
+            False,
+            f"A máquina {id_maquina} já possui a passagem #{id_aberta} em aberto ({st_aberta}).",
+            None,
+        )
+
     hora_entrada = agora_str()
     id_pass = inserir_passagem(str(id_maquina), data_entrada=hora_entrada)
     if fotos_json and fotos_json != "[]":
@@ -105,7 +155,7 @@ def abrir_nova_passagem_com_fotos(
         "NOVA_PASSAGEM",
         f"Nova passagem #{id_pass} aberta para máquina ID {id_maquina} em {hora_entrada}.",
     )
-    return id_pass, hora_entrada
+    return True, hora_entrada, id_pass
 
 
 def redefinir_laudo_passagem(
