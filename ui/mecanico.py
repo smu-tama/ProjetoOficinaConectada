@@ -432,7 +432,19 @@ def _render_laudo_tecnico(is_mobile: bool, logar_acao) -> None:
 
 
 def _render_execucao(is_mobile: bool, logar_acao) -> None:
-    st.subheader("⚙️ Execução e Conclusão de Manutenções")
+    if is_mobile:
+        st.markdown(
+            """
+            <div class="mob-hub-hero">
+                <h3>⚙️ Execução na Bancada</h3>
+                <p>Inicie ou conclua manutenções aprovadas</p>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    else:
+        st.subheader("⚙️ Execução e Conclusão de Manutenções")
+
     df_consolidado = obter_visao_consolidada()
     aprovadas = df_consolidado[
         df_consolidado["ID_Passagem"].notna()
@@ -451,9 +463,25 @@ def _render_execucao(is_mobile: bool, logar_acao) -> None:
         with st.expander(
             f"Máquina {row['ID']} (#{id_pass}) - {row['Cliente_Nome']} [{row['Status']}]"
         ):
-            st.write(
-                f"**Modelo:** {row['Modelo']} | **Laudo:** {row['Descricao_Laudo']}"
-            )
+            if is_mobile:
+                st.markdown(
+                    f"""
+                    <div class="mob-sec-card">
+                        <div class="mob-sec-card-header">
+                            <b>{row['Modelo']} (ID {row['ID']})</b>
+                            <span class="mob-sec-badge">{row['Status']}</span>
+                        </div>
+                        <div style="font-size: 0.82rem; color: #132238;">
+                            <b>Laudo:</b> {row['Descricao_Laudo']}
+                        </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.write(
+                    f"**Modelo:** {row['Modelo']} | **Laudo:** {row['Descricao_Laudo']}"
+                )
             exibir_galeria_imagens(
                 row.get("Fotos_Laudo"),
                 "🛠️ Fotos do Laudo",
@@ -487,52 +515,3 @@ def _render_execucao(is_mobile: bool, logar_acao) -> None:
                     )
                     st.session_state.flash_sucesso = "Serviço concluído!"
                     st.rerun()
-
-
-def renderizar_visao_mecanico(
-    is_mobile: bool,
-    logar_acao,
-    encerrar_sessao,
-    render_grade,
-    render_nav,
-) -> None:
-    tela_ativa = st.session_state.tela_mecanico
-    if tela_ativa == "Início":
-        render_nav(TELAS_MECANICO, "tela_mecanico", ROTULOS_MECANICO)
-        render_grade(
-            MODULOS_MECANICO_HUB,
-            "tela_mecanico",
-            f"🔧 {st.session_state.usuario_logado} — Módulos da Oficina",
-            "Toque em um botão para abrir a tela correspondente.",
-        )
-        st.markdown(
-            '<div class="login-mobile-only" style="margin-top: 10px;">',
-            unsafe_allow_html=True,
-        )
-        if st.button(
-            "🚪 Sair da Conta", key="mob_logout_mec", use_container_width=True
-        ):
-            encerrar_sessao()
-            st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
-        return
-
-    render_nav(TELAS_MECANICO, "tela_mecanico", ROTULOS_MECANICO)
-    if tela_ativa == "Entrada / Passagens":
-        _render_entrada_passagens(is_mobile, logar_acao)
-    elif tela_ativa == "Etiqueta QR Code":
-        _render_etiqueta_qr()
-    elif tela_ativa == "Laudo Técnico":
-        _render_laudo_tecnico(is_mobile, logar_acao)
-    elif tela_ativa == "Execução":
-        _render_execucao(is_mobile, logar_acao)
-    elif tela_ativa == "Máquinas e Passagens":
-        renderizar_tabela_com_busca(
-            is_mobile=is_mobile,
-            perfil_logado=st.session_state.perfil_logado,
-            logar_acao_fn=logar_acao,
-        )
-    elif tela_ativa == "Histórico por Cliente":
-        renderizar_visao_historica_cliente(
-            contexto_key="mecanico", is_mobile=is_mobile
-        )

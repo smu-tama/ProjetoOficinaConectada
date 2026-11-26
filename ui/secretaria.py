@@ -266,7 +266,9 @@ def _render_cockpit_mobile(df_pass_ativas, logar_acao) -> None:
         is_mobile=True,
         cols_qtd=2,
     )
-    _render_acoes_passagem(row, is_mobile=True, logar_acao=logar_acao, prefixo="mob")
+    _render_acoes_passagem(
+        row, is_mobile=True, logar_acao=logar_acao, prefixo="mob"
+    )
 
 
 def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
@@ -341,7 +343,9 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
             st.info("Nenhuma peça cadastrada.")
         else:
             st.dataframe(
-                df_est[["ID_Peca", "Nome", "Quantidade", "Minimo", "Preco_Unitario"]],
+                df_est[
+                    ["ID_Peca", "Nome", "Quantidade", "Minimo", "Preco_Unitario"]
+                ],
                 use_container_width=True,
                 hide_index=True,
                 height=160,
@@ -389,3 +393,12 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
                 row, is_mobile=False, logar_acao=logar_acao, prefixo="desk"
             )
         st.markdown("</div>", unsafe_allow_html=True)
+
+
+def renderizar_cockpit_secretaria(
+    df_pass_ativas, df_est, is_mobile: bool, logar_acao
+) -> None:
+    if is_mobile:
+        _render_cockpit_mobile(df_pass_ativas, logar_acao)
+    else:
+        _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao)
