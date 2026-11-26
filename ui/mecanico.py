@@ -478,10 +478,18 @@ def _render_execucao(is_mobile: bool, logar_acao) -> None:
                     )
                     st.session_state.flash_sucesso = "Serviço concluído!"
                     st.rerun()
-def renderizar_visao_mecanico(is_mobile: bool, logar_acao) -> None:
+def renderizar_visao_mecanico(
+    is_mobile: bool = False,
+    logar_acao=None,
+    render_nav=None,
+    **kwargs,
+) -> None:
     """Renderiza o hub e as telas operacionais do perfil Mecânico."""
     if "tela_mecanico" not in st.session_state:
         st.session_state.tela_mecanico = "Início"
+
+    if callable(render_nav):
+        render_nav()
 
     tela_atual = st.session_state.tela_mecanico
 
@@ -494,13 +502,6 @@ def renderizar_visao_mecanico(is_mobile: bool, logar_acao) -> None:
             is_mobile=is_mobile,
         )
         return
-
-    renderizar_barra_navegacao_ativa(
-        opcoes_telas=TELAS_MECANICO,
-        chave_estado="tela_mecanico",
-        rotulos_curtos=ROTULOS_MECANICO,
-        is_mobile=is_mobile,
-    )
 
     if tela_atual == "Entrada / Passagens":
         _render_entrada_passagens(is_mobile=is_mobile, logar_acao=logar_acao)

@@ -403,17 +403,29 @@ def renderizar_cockpit_secretaria(
     else:
         _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao)
 
-def renderizar_visao_secretaria(is_mobile: bool, logar_acao) -> None:
-    """Renderiza a visão principal da Secretaria."""
+def renderizar_visao_secretaria(
+    is_mobile: bool = False,
+    logar_acao=None,
+    df_pass_ativas=None,
+    df_est=None,
+    render_nav=None,
+    **kwargs,
+) -> None:
+    """Renderiza a visão principal da Secretaria compatível com a chamada do app.py."""
     if "tela_secretaria" not in st.session_state:
         st.session_state.tela_secretaria = "Início"
 
-    df_pass_ativas = obter_visao_consolidada()
-    df_est = carregar_tabela("estoque")
+    if callable(render_nav):
+        render_nav()
+
+    dados_passagens = (
+        df_pass_ativas if df_pass_ativas is not None else obter_visao_consolidada()
+    )
+    dados_estoque = df_est if df_est is not None else carregar_tabela("estoque")
 
     renderizar_cockpit_secretaria(
-        df_pass_ativas=df_pass_ativas,
-        df_est=df_est,
+        df_pass_ativas=dados_passagens,
+        df_est=dados_estoque,
         is_mobile=is_mobile,
         logar_acao=logar_acao,
     )
