@@ -60,6 +60,7 @@ is_mobile = detectar_mobile()
 logar_acao = criar_logger_sessao()
 logout_fn = partial(encerrar_sessao, logar_acao)
 grade_fn = partial(renderizar_grade_botoes_inicial, is_mobile=is_mobile)
+nav_fn = partial(renderizar_barra_navegacao_ativa, is_mobile=is_mobile)
 
 if not renderizar_autenticacao(is_mobile=is_mobile, logar_acao=logar_acao):
     st.stop()
@@ -73,7 +74,7 @@ if perfil == "Mecânico (Oficina)":
         logar_acao=logar_acao,
         encerrar_sessao=logout_fn,
         render_grade=grade_fn,
-        render_nav=renderizar_barra_navegacao_ativa,
+        render_nav=nav_fn,
     )
 elif perfil == "Secretaria (Administração)":
     renderizar_visao_secretaria(
@@ -81,5 +82,5 @@ elif perfil == "Secretaria (Administração)":
         logar_acao=logar_acao,
         encerrar_sessao=logout_fn,
         render_grade=grade_fn,
-        render_nav=renderizar_barra_navegacao_ativa,
+        render_nav=nav_fn,
     )

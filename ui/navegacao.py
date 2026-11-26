@@ -12,20 +12,30 @@ except Exception:
 
 
 def detectar_mobile() -> bool:
-    """Detecta se a largura da janela corresponde a dispositivo mobile (<= 768px)."""
-    if not HAS_ST_JS:
-        return False
-    try:
-        largura_tela = st_javascript("window.innerWidth", key="detect_inner_width")
-    except Exception:
-        largura_tela = None
+    """Detecta se a largura da janela corresponde a dispositivo mobile (<= 768px).
 
-    # Salva no session_state para não perder o valor entre reruns
-    if isinstance(largura_tela, (int, float)) and largura_tela > 0:
-        st.session_state["largura_tela_cache"] = largura_tela
+    Aceita também `?mobile=1` na URL como fallback imediato.
+    """
+    if str(st.query_params.get("mobile", "")).strip() in ("1", "true", "yes"):
+        st.session_state["largura_tela_cache"] = 390
+        return True
+
+    if HAS_ST_JS:
+        try:
+            largura_tela = st_javascript(
+                "window.innerWidth", key="detect_inner_width"
+            )
+        except Exception:
+            largura_tela = None
+
+        if isinstance(largura_tela, (int, float)) and largura_tela > 0:
+            st.session_state["largura_tela_cache"] = largura_tela
 
     largura_final = st.session_state.get("largura_tela_cache")
-    return bool(largura_final and largura_final <= 768)
+    return bool(
+        isinstance(largura_final, (int, float))
+        and 0 < largura_final <= 768
+    )
 
 
 def criar_logger_sessao():
@@ -279,6 +289,7 @@ def renderizar_grade_botoes_inicial(
                     st.rerun()
                 st.caption(mod["descricao"])
 
+
 def renderizar_barra_navegacao_ativa(
     opcoes_telas: list[str],
     chave_estado: str,
@@ -288,7 +299,6 @@ def renderizar_barra_navegacao_ativa(
     """Renderiza navegação enxuta sem empilhar botões no mobile."""
     tela_atual = st.session_state.get(chave_estado, "Início")
 
-    # Na tela "Início" não precisa exibir barra superior nem botão de voltar
     if tela_atual == "Início":
         return
 

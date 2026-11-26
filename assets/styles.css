@@ -1,255 +1,6 @@
-:root {
-    --azul-escuro: #0F3D75;
-    --azul-principal: #1D5FA7;
-    --azul-claro: #EAF2FC;
-    --amarelo: #F5B700;
-    --amarelo-claro: #FFF8DB;
-    --branco: #FFFFFF;
-    --borda: #C8D9EE;
-    --texto: #132238;
-}
-
-/* Fundo branco/gelo minimalista */
-.stApp,
-[data-testid="stHeader"],
-[data-testid="stBottomBlockContainer"] {
-    background-color: #F7FAFE !important;
-    color: var(--texto) !important;
-}
-
-[data-testid="stHeader"] {
-    background-color: transparent !important;
-}
-
-.block-container {
-    padding-top: 0.9rem !important;
-    padding-bottom: 1.1rem !important;
-    max-width: 98% !important;
-}
-
-/* Barra lateral em branco e azul */
-[data-testid="stSidebar"] {
-    background-color: var(--branco) !important;
-    border-right: 2px solid var(--borda) !important;
-}
-
-/* Cabeçalho principal branco, azul e amarelo */
-.oficina-header {
-    background: linear-gradient(95deg, #0F3D75 0%, #1D5FA7 85%, #F5B700 100%);
-    color: #FFFFFF;
-    padding: 11px 18px;
-    border-radius: 10px;
-    border-bottom: 3px solid #F5B700;
-    margin-bottom: 10px;
-    box-shadow: 0 2px 6px rgba(15, 61, 117, 0.10);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 6px;
-}
-
-.oficina-header h1 {
-    margin: 0;
-    font-size: 1.28rem;
-    color: #FFFFFF;
-    letter-spacing: -0.01em;
-}
-
-.oficina-header span {
-    font-size: 0.82rem;
-    color: #FFF8DB;
-    font-weight: 500;
-}
-
-/* Caixas de texto, número e área de texto */
-.stTextInput > div > div > input,
-.stTextArea > div > div > textarea,
-.stNumberInput > div > div > input {
-    background-color: #FFFFFF !important;
-    color: #132238 !important;
-    border: 1.5px solid #B8CFE8 !important;
-    border-radius: 8px !important;
-    font-size: 0.9rem !important;
-}
-
-.stTextInput > div > div > input:focus,
-.stTextArea > div > div > textarea:focus,
-.stNumberInput > div > div > input:focus {
-    border-color: #1D5FA7 !important;
-    box-shadow: 0 0 0 2px rgba(245, 183, 0, 0.28) !important;
-}
-
-/* Caixas de seleção (Selectbox / MultiSelect) */
-div[data-baseweb="select"] > div {
-    background-color: #FFFFFF !important;
-    color: #132238 !important;
-    border: 1.5px solid #B8CFE8 !important;
-    border-radius: 8px !important;
-    min-height: 40px;
-}
-
-div[data-baseweb="select"] > div:hover {
-    border-color: #1D5FA7 !important;
-}
-
-ul[data-baseweb="menu"] {
-    background-color: #FFFFFF !important;
-    border: 1.5px solid #1D5FA7 !important;
-    border-radius: 8px !important;
-}
-
-ul[data-baseweb="menu"] li:hover {
-    background-color: #FFF8DB !important;
-    color: #0F3D75 !important;
-}
-
-/* Upload de arquivos */
-[data-testid="stFileUploader"] section {
-    background-color: #FFFFFF !important;
-    border: 1.5px dashed #1D5FA7 !important;
-    border-radius: 9px !important;
-}
-
-/* Tabelas e dataframes */
-[data-testid="stDataFrame"],
-[data-testid="stTable"] {
-    background-color: #FFFFFF !important;
-    border: 1.5px solid #C8D9EE !important;
-    border-top: 3px solid #F5B700 !important;
-    border-radius: 9px !important;
-    overflow: hidden;
-}
-
-/* Expanders */
-[data-testid="stExpander"] {
-    background-color: #FFFFFF !important;
-    border: 1.5px solid #C8D9EE !important;
-    border-left: 4px solid #1D5FA7 !important;
-    border-radius: 8px !important;
-}
-
-[data-testid="stExpander"] summary {
-    color: #0F3D75 !important;
-    font-weight: 600 !important;
-}
-
-/* Botões padrão em azul com destaque amarelo no hover */
-.stButton > button,
-.stFormSubmitButton > button,
-.stDownloadButton > button {
-    background-color: #1D5FA7 !important;
-    color: #FFFFFF !important;
-    border: 1.5px solid #0F3D75 !important;
-    border-radius: 8px !important;
-    font-weight: 600 !important;
-    min-height: 38px;
-    padding: 0.38rem 0.78rem !important;
-    transition: all 0.15s ease;
-}
-
-.stButton > button:hover,
-.stFormSubmitButton > button:hover,
-.stDownloadButton > button:hover {
-    background-color: #0F3D75 !important;
-    color: #FFD166 !important;
-    border-color: #F5B700 !important;
-}
-
-/* Painel superior no desktop */
-.painel-nav-desktop-label {
-    font-size: 0.8rem;
-    font-weight: 700;
-    color: #0F3D75;
-    border-left: 4px solid #F5B700;
-    padding-left: 8px;
-    margin-bottom: 4px;
-}
-
-/* Banner da grade inicial */
-.hub-banner {
-    background-color: #FFFFFF;
-    border: 1.5px solid #C8D9EE;
-    border-left: 5px solid #F5B700;
-    border-radius: 9px;
-    padding: 10px 14px;
-    margin-bottom: 10px;
-}
-
-.hub-banner h3 {
-    margin: 0;
-    color: #0F3D75;
-    font-size: 1.05rem;
-}
-
-.hub-banner p {
-    margin: 2px 0 0 0;
-    color: #3A4E66;
-    font-size: 0.84rem;
-}
-
-/* Abas com destaque azul e amarelo */
-.stTabs [data-baseweb="tab-list"] {
-    gap: 4px;
-    border-bottom: 2px solid #C8D9EE;
-    margin-bottom: 8px;
-    flex-wrap: wrap;
-}
-
-.stTabs [data-baseweb="tab"] {
-    background-color: #FFFFFF !important;
-    color: #0F3D75 !important;
-    border: 1px solid #C8D9EE !important;
-    border-bottom: none !important;
-    border-radius: 7px 7px 0 0 !important;
-    font-weight: 600 !important;
-    font-size: 0.83rem !important;
-    padding: 6px 11px !important;
-}
-
-.stTabs [aria-selected="true"] {
-    background-color: #0F3D75 !important;
-    color: #FFD166 !important;
-    border-bottom: 3px solid #F5B700 !important;
-}
-
-/* Cards de métricas */
-[data-testid="stMetric"] {
-    background-color: #FFFFFF !important;
-    border: 1px solid #C8D9EE !important;
-    border-top: 3px solid #F5B700 !important;
-    border-radius: 8px !important;
-    padding: 8px 12px !important;
-}
-
-[data-testid="stMetricLabel"] {
-    color: #0F3D75 !important;
-    font-weight: 700 !important;
-    font-size: 0.78rem !important;
-}
-
-[data-testid="stMetricValue"] {
-    color: #132238 !important;
-    font-size: 1.28rem !important;
-}
-
-.cockpit-box-title {
-    background-color: #FFFFFF;
-    border: 1px solid #C8D9EE;
-    border-left: 5px solid #F5B700;
-    color: #0F3D75;
-    padding: 7px 12px;
-    border-radius: 7px;
-    font-weight: 700;
-    font-size: 0.94rem;
-    margin-bottom: 8px;
-}
-
-.login-mobile-only {
-    display: none;
-}
-
-/* Ajustes exclusivos para mobile (<= 768px) */
+/* =========================================================
+   MOBILE (<= 768px) — HUB DE CARTÕES E VISÃO COMPACTA
+   ========================================================= */
 @media (max-width: 768px) {
     .nav-desktop-only,
     [data-testid="stSidebar"],
@@ -263,200 +14,53 @@ ul[data-baseweb="menu"] li:hover {
     }
 
     .block-container {
-        padding-top: 0.55rem !important;
-        padding-left: 0.6rem !important;
-        padding-right: 0.6rem !important;
-        padding-bottom: 1.2rem !important;
+        padding-top: 2.6rem !important;
+        padding-left: 0.65rem !important;
+        padding-right: 0.65rem !important;
+        padding-bottom: 1.4rem !important;
         max-width: 100% !important;
     }
 
     .oficina-header {
-        padding: 9px 12px;
-        border-radius: 8px;
-        margin-bottom: 8px;
+        padding: 10px 14px !important;
+        border-radius: 10px !important;
+        margin-bottom: 10px !important;
+        min-height: 46px !important;
     }
 
     .oficina-header h1 {
-        font-size: 1.05rem;
+        font-size: 1.02rem !important;
+        color: #FFFFFF !important;
+        display: block !important;
     }
 
     .oficina-header span {
-        display: none;
+        display: none !important;
     }
 
-    .hub-banner {
-        padding: 8px 12px;
-        margin-bottom: 8px;
+    .mob-hub-hero {
+        background: linear-gradient(135deg, #0F3D75 0%, #1D5FA7 72%, #F5B700 165%) !important;
+        color: #FFFFFF !important;
+        border-radius: 16px !important;
+        padding: 14px 16px !important;
+        margin-bottom: 12px !important;
+        border: 1.5px solid #1D5FA7 !important;
+        box-shadow: 0 4px 12px rgba(15, 61, 117, 0.14) !important;
     }
 
-    .hub-banner h3 {
-        font-size: 0.96rem;
+    .mob-hub-hero h3 {
+        margin: 0 0 4px 0 !important;
+        font-size: 1.02rem !important;
+        font-weight: 800 !important;
+        color: #FFFFFF !important;
     }
 
-    .hub-banner p {
-        font-size: 0.78rem;
+    .mob-hub-hero p {
+        margin: 0 !important;
+        font-size: 0.8rem !important;
+        color: #FFF8DB !important;
     }
 
-    .stButton > button,
-    .stFormSubmitButton > button,
-    .stDownloadButton > button {
-        min-height: 44px;
-        font-size: 0.86rem !important;
-        border-radius: 8px !important;
-        padding: 0.35rem 0.55rem !important;
-    }
-
-    [data-testid="stMetric"] {
-        padding: 6px 8px !important;
-    }
-
-    [data-testid="stMetricValue"] {
-        font-size: 1.05rem !important;
-    }
-}
-/* =========================================================
-   DASHBOARD DESKTOP — ESTILO ADMIN COM PALETA BRANCO/AZUL/AMARELO
-   ========================================================= */
-@media (min-width: 769px) {
-    .sec-topbar {
-        background: #FFFFFF;
-        border: 1.5px solid #C8D9EE;
-        border-left: 5px solid #0F3D75;
-        border-radius: 12px;
-        padding: 12px 18px;
-        margin-bottom: 14px;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        box-shadow: 0 2px 8px rgba(15, 61, 117, 0.05);
-    }
-
-    .sec-topbar-title {
-        margin: 0;
-        font-size: 1.05rem;
-        font-weight: 700;
-        color: #0F3D75;
-    }
-
-    .sec-topbar-sub {
-        margin: 2px 0 0 0;
-        font-size: 0.8rem;
-        color: #4B6280;
-    }
-
-    .sec-pill-amarelo {
-        background: #FFF8DB;
-        color: #0F3D75;
-        border: 1.5px solid #F5B700;
-        border-radius: 999px;
-        padding: 4px 12px;
-        font-size: 0.78rem;
-        font-weight: 700;
-    }
-
-    .sec-kpi-card {
-        background: #FFFFFF;
-        border: 1.5px solid #C8D9EE;
-        border-radius: 12px;
-        padding: 14px 16px;
-        box-shadow: 0 2px 8px rgba(15, 61, 117, 0.05);
-        transition: transform 0.15s ease, border-color 0.15s ease;
-        min-height: 112px;
-    }
-
-    .sec-kpi-card:hover {
-        transform: translateY(-2px);
-        border-color: #1D5FA7;
-    }
-
-    .sec-kpi-card.destaque-amarelo {
-        border-top: 4px solid #F5B700;
-    }
-
-    .sec-kpi-card.destaque-azul {
-        border-top: 4px solid #1D5FA7;
-    }
-
-    .sec-kpi-top {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 8px;
-    }
-
-    .sec-kpi-icone {
-        width: 34px;
-        height: 34px;
-        border-radius: 9px;
-        background: #EAF2FC;
-        color: #0F3D75;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 1rem;
-        border: 1px solid #C8D9EE;
-    }
-
-    .sec-kpi-icone.amarelo {
-        background: #FFF8DB;
-        border-color: #F5B700;
-    }
-
-    .sec-kpi-tag {
-        font-size: 0.72rem;
-        font-weight: 700;
-        color: #0F3D75;
-        background: #F7FAFE;
-        border: 1px solid #C8D9EE;
-        padding: 2px 8px;
-        border-radius: 999px;
-    }
-
-    .sec-kpi-valor {
-        font-size: 1.45rem;
-        font-weight: 800;
-        color: #0F3D75;
-        line-height: 1.15;
-    }
-
-    .sec-kpi-label {
-        font-size: 0.8rem;
-        color: #4B6280;
-        margin-top: 3px;
-        font-weight: 600;
-    }
-
-    .sec-panel-card {
-        background: #FFFFFF;
-        border: 1.5px solid #C8D9EE;
-        border-radius: 12px;
-        padding: 14px 16px;
-        margin-bottom: 14px;
-        box-shadow: 0 2px 8px rgba(15, 61, 117, 0.05);
-    }
-
-    .sec-panel-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        padding-bottom: 8px;
-        margin-bottom: 10px;
-        border-bottom: 1.5px solid #EAF2FC;
-    }
-
-    .sec-panel-title {
-        margin: 0;
-        font-size: 0.96rem;
-        font-weight: 700;
-        color: #0F3D75;
-        border-left: 4px solid #F5B700;
-        padding-left: 8px;
-    }
-}
-/* =========================================================
-   HUB MOBILE — GRADE DE CARTÕES COM ÍCONE CIRCULAR
-   ========================================================= */
-@media (max-width: 768px) {
     .mob-tile-card {
         background-color: #FFFFFF !important;
         border: 1.5px solid #C8D9EE !important;
@@ -465,6 +69,33 @@ ul[data-baseweb="menu"] li:hover {
         text-align: center !important;
         box-shadow: 0 2px 8px rgba(15, 61, 117, 0.06) !important;
         margin-bottom: 4px !important;
+    }
+
+    .mob-tile-badge {
+        width: 44px !important;
+        height: 44px !important;
+        margin: 0 auto 6px auto !important;
+        border-radius: 999px !important;
+        background-color: #EAF2FC !important;
+        border: 1.5px solid #1D5FA7 !important;
+        color: #0F3D75 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 1.15rem !important;
+    }
+
+    .mob-tile-badge.amarelo {
+        background-color: #FFF8DB !important;
+        border-color: #F5B700 !important;
+    }
+
+    .mob-tile-label {
+        font-size: 0.78rem !important;
+        font-weight: 700 !important;
+        color: #0F3D75 !important;
+        line-height: 1.2 !important;
+        margin-bottom: 6px !important;
     }
 
     .mob-sec-card {
@@ -478,20 +109,37 @@ ul[data-baseweb="menu"] li:hover {
     }
 
     .mob-sec-card-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 6px;
-        gap: 8px;
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        margin-bottom: 6px !important;
+        gap: 8px !important;
     }
 
     .mob-sec-badge {
-        background-color: #FFF8DB;
-        color: #0F3D75;
-        border: 1px solid #F5B700;
-        border-radius: 999px;
-        padding: 2px 9px;
-        font-size: 0.72rem;
-        font-weight: 700;
+        background-color: #FFF8DB !important;
+        color: #0F3D75 !important;
+        border: 1px solid #F5B700 !important;
+        border-radius: 999px !important;
+        padding: 2px 9px !important;
+        font-size: 0.72rem !important;
+        font-weight: 700 !important;
+    }
+
+    .stButton > button,
+    .stFormSubmitButton > button,
+    .stDownloadButton > button {
+        min-height: 44px !important;
+        font-size: 0.86rem !important;
+        border-radius: 8px !important;
+        padding: 0.35rem 0.55rem !important;
+    }
+
+    [data-testid="stMetric"] {
+        padding: 6px 8px !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        font-size: 1.05rem !important;
     }
 }
