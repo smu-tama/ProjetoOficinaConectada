@@ -11,6 +11,12 @@ import pandas as pd
 import streamlit as st
 from streamlit_back_camera_input import back_camera_input
 
+try:
+    from streamlit_javascript import st_javascript
+    HAS_ST_JS = True
+except Exception:
+    HAS_ST_JS = False
+
 st.set_page_config(
     page_title="Oficina Conectada - Sistema de Gestão",
     page_icon="🔧",
@@ -19,7 +25,19 @@ st.set_page_config(
 )
 
 # ---------------------------------------------------------
-# IDENTIDADE VISUAL (BRANCO, AZUL E AMARELO) & COCKPIT COMPACTO
+# DETECÇÃO DE DISPOSITIVO / LARGURA DE TELA
+# ---------------------------------------------------------
+largura_tela = None
+if HAS_ST_JS:
+    try:
+        largura_tela = st_javascript("window.innerWidth", key="detect_inner_width")
+    except Exception:
+        largura_tela = None
+
+is_mobile_device = isinstance(largura_tela, (int, float)) and largura_tela > 0 and largura_tela <= 768
+
+# ---------------------------------------------------------
+# IDENTIDADE VISUAL (BRANCO, AZUL E AMARELO) & RESPONSIVIDADE
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -40,10 +58,9 @@ st.markdown(
             color: var(--texto-escuro);
         }
 
-        /* Reduz padding superior/inferior para caber tudo acima da dobra */
         .block-container {
-            padding-top: 1.1rem !important;
-            padding-bottom: 1rem !important;
+            padding-top: 1.05rem !important;
+            padding-bottom: 1.2rem !important;
             max-width: 98% !important;
         }
 
@@ -56,7 +73,7 @@ st.markdown(
         .oficina-header {
             background: linear-gradient(90deg, #0F3D75 0%, #1D5FA7 84%, #F5B700 100%);
             color: #FFFFFF;
-            padding: 12px 20px;
+            padding: 12px 18px;
             border-radius: 10px;
             border-bottom: 3px solid #F5B700;
             margin-bottom: 10px;
@@ -65,14 +82,15 @@ st.markdown(
             justify-content: space-between;
             align-items: center;
             flex-wrap: wrap;
+            gap: 6px;
         }
         .oficina-header h1 {
             margin: 0;
-            font-size: 1.35rem;
+            font-size: 1.32rem;
             color: #FFFFFF;
         }
         .oficina-header span {
-            font-size: 0.85rem;
+            font-size: 0.84rem;
             color: #FFF8DB;
             font-weight: 500;
         }
@@ -84,9 +102,10 @@ st.markdown(
             background-color: #1D5FA7;
             color: #FFFFFF;
             border: 1.5px solid #0F3D75;
-            border-radius: 7px;
+            border-radius: 8px;
             font-weight: 600;
-            padding: 0.35rem 0.75rem;
+            min-height: 38px;
+            padding: 0.38rem 0.75rem;
             transition: all 0.16s ease;
         }
         .stButton > button:hover,
@@ -97,7 +116,7 @@ st.markdown(
             border-color: #F5B700;
         }
 
-        /* Painel superior de navegação (Mecânico no PC) */
+        /* Painel superior de navegação (Desktop) */
         .painel-nav-desktop-label {
             font-size: 0.82rem;
             font-weight: 700;
@@ -112,6 +131,7 @@ st.markdown(
             gap: 4px;
             border-bottom: 2px solid #C8D9EE;
             margin-bottom: 8px;
+            flex-wrap: wrap;
         }
         .stTabs [data-baseweb="tab"] {
             background-color: #FFFFFF;
@@ -145,10 +165,9 @@ st.markdown(
         }
         [data-testid="stMetricValue"] {
             color: #162436 !important;
-            font-size: 1.35rem !important;
+            font-size: 1.3rem !important;
         }
 
-        /* Painéis internos do Cockpit */
         .cockpit-box-title {
             background-color: #FFFFFF;
             border: 1px solid #C8D9EE;
@@ -161,27 +180,52 @@ st.markdown(
             margin-bottom: 8px;
         }
 
-        .nav-mobile-only {
+        .mobile-atalhos-banner {
             display: none;
         }
 
+        /* Regras específicas para telas Mobile (<= 768px) */
         @media (max-width: 768px) {
+            .block-container {
+                padding-top: 0.65rem !important;
+                padding-left: 0.65rem !important;
+                padding-right: 0.65rem !important;
+                padding-bottom: 2rem !important;
+                max-width: 100% !important;
+            }
             .nav-desktop-only {
                 display: none !important;
             }
-            .nav-mobile-only {
+            .mobile-atalhos-banner {
                 display: block !important;
                 background-color: #FFF8DB;
                 border: 1.5px solid #F5B700;
                 color: #0F3D75;
                 padding: 8px 12px;
                 border-radius: 8px;
-                font-size: 0.85rem;
-                font-weight: 600;
-                margin-bottom: 10px;
+                font-size: 0.84rem;
+                font-weight: 700;
+                margin-bottom: 8px;
+            }
+            .oficina-header {
+                padding: 10px 14px;
+                border-radius: 8px;
             }
             .oficina-header h1 {
-                font-size: 1.15rem;
+                font-size: 1.12rem;
+            }
+            .oficina-header span {
+                font-size: 0.76rem;
+            }
+            .stButton > button,
+            .stFormSubmitButton > button,
+            .stDownloadButton > button {
+                min-height: 44px;
+                font-size: 0.92rem;
+                border-radius: 9px;
+            }
+            [data-testid="stMetricValue"] {
+                font-size: 1.12rem !important;
             }
         }
     </style>
@@ -193,7 +237,7 @@ st.markdown(
     """
     <div class="oficina-header">
         <h1>🔧 Oficina Conectada: Gestão Integrada (SQL)</h1>
-        <span>Branco • Azul • Amarelo | Operação Ágil</span>
+        <span>Branco • Azul • Amarelo | Responsivo</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -413,6 +457,8 @@ if "flash_sucesso" not in st.session_state:
     st.session_state.flash_sucesso = None
 if "tela_mecanico" not in st.session_state:
     st.session_state.tela_mecanico = "Entrada / Passagens"
+if "tela_secretaria_mobile" not in st.session_state:
+    st.session_state.tela_secretaria_mobile = "Cockpit"
 
 if st.session_state.flash_sucesso:
     st.success(st.session_state.flash_sucesso)
@@ -673,7 +719,7 @@ def renderizar_visao_historica_cliente(contexto_key="default", compacto=False):
         st.info("Nenhum cliente cadastrado no sistema.")
         return
 
-    c_busca, c_sel = st.columns([1, 1.4])
+    c_busca, c_sel = st.columns([1, 1.4]) if not is_mobile_device else (st.container(), st.container())
     filtro_cli = c_busca.text_input(
         "Buscar cliente (nome/ID/tel):",
         key=f"filtro_cli_{contexto_key}",
@@ -710,11 +756,19 @@ def renderizar_visao_historica_cliente(contexto_key="default", compacto=False):
         validos = passagens_cli[passagens_cli["Status"] != "Orçamento Recusado"]
         total_orcado = float(pd.to_numeric(validos["Valor_Orcamento"], errors="coerce").fillna(0.0).sum())
 
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Máquinas", len(maquinas_cli))
-    m2.metric("Passagens", len(passagens_cli))
-    m3.metric("Em Andamento", em_andamento_qtd)
-    m4.metric("Total Orçado", fmt_valor(total_orcado))
+    if is_mobile_device:
+        m1, m2 = st.columns(2)
+        m1.metric("Máquinas", len(maquinas_cli))
+        m2.metric("Passagens", len(passagens_cli))
+        m3, m4 = st.columns(2)
+        m3.metric("Em Andamento", em_andamento_qtd)
+        m4.metric("Total Orçado", fmt_valor(total_orcado))
+    else:
+        m1, m2, m3, m4 = st.columns(4)
+        m1.metric("Máquinas", len(maquinas_cli))
+        m2.metric("Passagens", len(passagens_cli))
+        m3.metric("Em Andamento", em_andamento_qtd)
+        m4.metric("Total Orçado", fmt_valor(total_orcado))
 
     altura_tab = 160 if compacto else 220
     st.markdown("**🚜 Máquinas do Cliente**")
@@ -733,7 +787,7 @@ def renderizar_visao_historica_cliente(contexto_key="default", compacto=False):
         st.info("Nenhuma passagem registrada para as máquinas deste cliente.")
         return
 
-    col_f1, col_f2 = st.columns(2)
+    col_f1, col_f2 = st.columns(2) if not is_mobile_device else (st.container(), st.container())
     ids_maq_cli = ["Todas"] + sorted(maquinas_cli["ID"].astype(str).unique().tolist())
     status_cli = ["Todos"] + sorted(passagens_cli["Status"].dropna().astype(str).unique().tolist())
 
@@ -826,14 +880,21 @@ st.sidebar.markdown("---")
 
 
 # ---------------------------------------------------------
-# NAVEGAÇÃO ADAPTATIVA (MECÂNICO: SUPERIOR NO PC / LATERAL NO MOBILE)
+# NAVEGAÇÃO ADAPTATIVA (DESKTOP + ATALHOS DIRETOS NO MOBILE)
 # ---------------------------------------------------------
-def navegar_telas(opcoes_telas, chave_estado):
+def navegar_telas(opcoes_telas, chave_estado, rotulos_curtos=None):
+    """
+    - Desktop: painel superior de navegação em botões.
+    - Mobile: grade de botões diretos para cada tela + barra lateral sincronizada.
+    """
     tela_atual = st.session_state.get(chave_estado, opcoes_telas[0])
     if tela_atual not in opcoes_telas:
         tela_atual = opcoes_telas[0]
         st.session_state[chave_estado] = tela_atual
 
+    rotulos_map = rotulos_curtos or {t: t for t in opcoes_telas}
+
+    # 1) Painel Superior no Desktop
     st.markdown('<div class="nav-desktop-only">', unsafe_allow_html=True)
     st.markdown('<div class="painel-nav-desktop-label">🧭 Painel Superior de Navegação</div>', unsafe_allow_html=True)
     cols = st.columns(len(opcoes_telas))
@@ -845,11 +906,22 @@ def navegar_telas(opcoes_telas, chave_estado):
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown(
-        f'<div class="nav-mobile-only">📱 Tela atual: <b>{tela_atual}</b> — Abra o menu lateral (<b>☰</b> ou <b>&gt;</b>) para navegar entre as telas.</div>',
-        unsafe_allow_html=True,
-    )
+    # 2) Atalhos Diretos para Telas no Mobile (grade 2 colunas, toque rápido)
+    st.markdown('<div class="mobile-atalhos-banner">', unsafe_allow_html=True)
+    st.markdown(f"📱 **Atalhos Rápidos Mobile** • Tela atual: **{rotulos_map.get(tela_atual, tela_atual)}**", unsafe_allow_html=True)
+    for row_start in range(0, len(opcoes_telas), 2):
+        par = opcoes_telas[row_start : row_start + 2]
+        m_cols = st.columns(len(par))
+        for j, nome_tela in enumerate(par):
+            ativa = nome_tela == tela_atual
+            curto = rotulos_map.get(nome_tela, nome_tela)
+            rot_mob = f"🟡 {curto}" if ativa else curto
+            if m_cols[j].button(rot_mob, key=f"mob_nav_{chave_estado}_{row_start + j}", use_container_width=True):
+                st.session_state[chave_estado] = nome_tela
+                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
+    # 3) Barra Lateral (também disponível no mobile)
     st.sidebar.markdown("### 🧭 Navegação entre Telas")
     for idx, nome_tela in enumerate(opcoes_telas):
         ativa = nome_tela == tela_atual
@@ -1005,17 +1077,17 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Passag
         return
 
     df_maq = carregar_visao_consolidada_passagens()
-    altura_tabela = 210 if compacto else 320
+    altura_tabela = 200 if (compacto or is_mobile_device) else 320
 
     tab_busca_txt, tab_ficha_id, tab_scan_qr = st.tabs([
-        "🔍 Lista & Filtro",
+        "🔍 Buscar Máquinas",
         "📋 Ficha & Passagens",
         "📷 Leitor QR",
     ])
 
     with tab_busca_txt:
         termo_busca = st.text_input(
-            "Filtrar por Cliente, ID da Máquina, Modelo ou Status:",
+            "Buscar por Cliente, ID da Máquina, Modelo ou Status:",
             key=f"busca_{titulo}_{compacto}",
         )
 
@@ -1029,16 +1101,14 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Passag
                 | df_exibicao["Status"].str.lower().str.contains(termo, na=False)
             ]
 
+        cols_tab = (
+            ["ID", "Cliente_Nome", "Modelo", "Status", "Valor_Orcamento"]
+            if is_mobile_device
+            else ["ID", "Cliente_Nome", "Modelo", "ID_Passagem", "Status", "Valor_Orcamento", "Data_Hora_Entrada"]
+        )
+
         st.dataframe(
-            df_exibicao[[
-                "ID",
-                "Cliente_Nome",
-                "Modelo",
-                "ID_Passagem",
-                "Status",
-                "Valor_Orcamento",
-                "Data_Hora_Entrada",
-            ]],
+            df_exibicao[cols_tab],
             use_container_width=True,
             hide_index=True,
             height=altura_tabela,
@@ -1060,7 +1130,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Passag
             renderizar_ficha_completa_maquina(row_maq)
 
             if st.session_state.perfil_logado == "Secretaria (Administração)":
-                if st.button("🗑️ Excluir Máquina e Histórico", key=f"btn_exc_{id_detalhe}_{compacto}"):
+                if st.button("🗑️ Excluir Máquina e Histórico", key=f"btn_exc_{id_detalhe}_{compacto}", use_container_width=True):
                     conn = get_connection()
                     cursor = conn.cursor()
                     cursor.execute("DELETE FROM passagens_oficina WHERE ID_Maquina = ?", (str(id_detalhe),))
@@ -1096,7 +1166,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Passag
 
 
 # ---------------------------------------------------------
-# VISÃO 1: MECÂNICO (Dispositivo Móvel / Oficina)
+# VISÃO 1: MECÂNICO (Dispositivo Móvel & Desktop)
 # ---------------------------------------------------------
 if st.session_state.perfil_logado == "Mecânico (Oficina)":
     st.subheader(f"📱 Módulo da Oficina — Mecânico: {st.session_state.usuario_logado}")
@@ -1105,13 +1175,21 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
     telas_mecanico = [
         "Entrada / Passagens",
-        "Etiqueta QR Code",
+        "Máquinas e Passagens",
         "Laudo Técnico",
         "Execução",
-        "Máquinas e Passagens",
+        "Etiqueta QR Code",
         "Histórico por Cliente",
     ]
-    tela_ativa = navegar_telas(telas_mecanico, "tela_mecanico")
+    rotulos_mecanico_mob = {
+        "Entrada / Passagens": "➕ Cadastrar / Passagem",
+        "Máquinas e Passagens": "🔍 Buscar Máquinas",
+        "Laudo Técnico": "🛠️ Laudo Técnico",
+        "Execução": "⚙️ Execução",
+        "Etiqueta QR Code": "🖨️ Etiqueta QR",
+        "Histórico por Cliente": "👤 Por Cliente",
+    }
+    tela_ativa = navegar_telas(telas_mecanico, "tela_mecanico", rotulos_curtos=rotulos_mecanico_mob)
 
     if tela_ativa == "Entrada / Passagens":
         st.subheader("📝 Registrar Máquina e Passagens na Oficina")
@@ -1133,7 +1211,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
             with st.form("form_novo_cliente", clear_on_submit=True):
                 novo_nome = st.text_input("Nome Completo do Cliente")
                 novo_tel = st.text_input("Telefone (Apenas Números com DDD, ex: 21999998888)")
-                btn_cli = st.form_submit_button("Salvar Cliente")
+                btn_cli = st.form_submit_button("Salvar Cliente", use_container_width=True)
 
                 if btn_cli:
                     tel_valido = validar_telefone(novo_tel)
@@ -1183,7 +1261,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                     value=True,
                 )
 
-                submitted = st.form_submit_button("Registrar Máquina")
+                submitted = st.form_submit_button("Registrar Máquina", use_container_width=True)
 
                 if submitted:
                     if not id_cli_final:
@@ -1253,7 +1331,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
                 exibir_banco_passagens_maquina(id_maq_sel, "Passagens Anteriores desta Máquina")
 
-                if st.button("➕ Abrir Nova Passagem na Oficina para esta Máquina"):
+                if st.button("➕ Abrir Nova Passagem na Oficina para esta Máquina", use_container_width=True):
                     hora_ent = agora_str()
                     id_pass = criar_passagem(id_maq_sel, data_entrada=hora_ent)
                     registrar_log(
@@ -1297,14 +1375,14 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                     }}
                 </style>
 
-                <div id="etiqueta-print" style="border: 2px dashed #1D5FA7; padding: 20px; border-radius: 10px; width: 320px; background-color: #FFFFFF; color: #0F3D75; text-align: center; margin-bottom: 20px;">
+                <div id="etiqueta-print" style="border: 2px dashed #1D5FA7; padding: 18px; border-radius: 10px; max-width: 320px; width: 100%; background-color: #FFFFFF; color: #0F3D75; text-align: center; margin-bottom: 16px;">
                     <h3 style="margin: 0; font-size: 18px; color: #0F3D75;">🔧 OFICINA CONECTADA</h3>
                     <hr style="border: 1px solid #F5B700; margin: 10px 0;">
                     <p style="font-size: 13px; margin: 4px 0; text-align: left;"><b>Cliente:</b> {maq_info['Cliente_Nome']}</p>
                     <p style="font-size: 13px; margin: 4px 0; text-align: left;"><b>Modelo:</b> {maq_info['Modelo']}</p>
                     <p style="font-size: 12px; margin: 4px 0; text-align: left;"><b>Cadastro:</b> {fmt_data(maq_info.get('Data_Hora_Cadastro'))}</p>
                     <div style="margin: 10px 0;">
-                        <img src="data:image/png;base64,{__import__('base64').b64encode(bytes_qrcode).decode()}" width="160px" />
+                        <img src="data:image/png;base64,{__import__('base64').b64encode(bytes_qrcode).decode()}" width="150px" />
                     </div>
                     <h2 style="margin: 0; color: #0F3D75; background-color: #FFF8DB; border: 1px solid #F5B700; border-radius: 6px; padding: 4px; font-size: 22px;">ID: {maq_info['ID']}</h2>
                 </div>
@@ -1314,7 +1392,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
             st.markdown(
                 """
-                <button onclick="window.print();" style="background-color: #0F3D75; color: #FFD166; padding: 10px 20px; border: 2px solid #F5B700; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px;">
+                <button onclick="window.print();" style="background-color: #0F3D75; color: #FFD166; padding: 11px 20px; border: 2px solid #F5B700; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; width: 100%; max-width: 320px;">
                     🖨️ Imprimir Etiqueta Diretamente
                 </button>
                 """,
@@ -1355,7 +1433,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                 "Aguardando Precificação (Secretaria)",
                 "Aguardando Precificação (Falta Peças no Estoque)",
             ]:
-                if st.button("🗑️ Excluir / Redefinir este Laudo (Corrigir Erro)"):
+                if st.button("🗑️ Excluir / Redefinir este Laudo (Corrigir Erro)", use_container_width=True):
                     atualizar_passagem(id_pass, {
                         "Descricao_Laudo": "Pendente",
                         "Anomalias": "Nenhuma",
@@ -1381,7 +1459,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
             if "carrinho_pecas" not in st.session_state:
                 st.session_state.carrinho_pecas = []
 
-            if st.button("➕ Adicionar Peça"):
+            if st.button("➕ Adicionar Peça", use_container_width=True):
                 nome_peca_limpo = peca_selecionada.split(" (Estoque:")[0]
                 estoque_item = df_est[df_est["Nome"] == nome_peca_limpo].iloc[0]
 
@@ -1404,7 +1482,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                 df_carrinho.columns = ["Peça", "Quantidade", "Preço Unitário (R$)"]
                 st.dataframe(df_carrinho, use_container_width=True, hide_index=True)
 
-                if st.button("🗑️ Limpar Carrinho de Peças"):
+                if st.button("🗑️ Limpar Carrinho de Peças", use_container_width=True):
                     st.session_state.carrinho_pecas = []
                     st.rerun()
 
@@ -1419,7 +1497,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                     value=row_sel["Anomalias"] if row_sel["Anomalias"] != "Nenhuma" else "",
                 )
 
-                enviar_secretaria = st.form_submit_button("Salvar e Enviar Laudo para Secretaria")
+                enviar_secretaria = st.form_submit_button("Salvar e Enviar Laudo para Secretaria", use_container_width=True)
 
                 if enviar_secretaria:
                     if not laudo.strip():
@@ -1492,7 +1570,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
                     if row["Status"] == "Aguardando Peças":
                         st.warning("⏳ Esta máquina aguarda peças no estoque para iniciar a manutenção.")
-                        if st.button(f"🔄 Verificar Estoque e Iniciar Manutenção (ID {row['ID']})", key=f"rever_pecas_{id_pass}"):
+                        if st.button(f"🔄 Verificar Estoque e Iniciar Manutenção (ID {row['ID']})", key=f"rever_pecas_{id_pass}", use_container_width=True):
                             hora_inicio = agora_str()
                             atualizar_passagem(id_pass, {
                                 "Status": "Em Manutenção (Na Bancada)",
@@ -1504,7 +1582,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                             st.rerun()
 
                     elif row["Status"] == "Cliente Aprovou (Pronto para Iniciar)":
-                        if st.button(f"▶️ Iniciar Manutenção (ID {row['ID']})", key=f"iniciar_{id_pass}"):
+                        if st.button(f"▶️ Iniciar Manutenção (ID {row['ID']})", key=f"iniciar_{id_pass}", use_container_width=True):
                             hora_inicio = agora_str()
                             atualizar_passagem(id_pass, {
                                 "Status": "Em Manutenção (Na Bancada)",
@@ -1517,7 +1595,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
                     elif row["Status"] == "Em Manutenção (Na Bancada)":
                         st.info(f"⚙️ Em execução por: **{fmt_data(row.get('Mecanico_Execucao'), 'N/A')}**")
-                        if st.button(f"🏁 Concluir Serviço (ID {row['ID']})", key=f"concluir_{id_pass}"):
+                        if st.button(f"🏁 Concluir Serviço (ID {row['ID']})", key=f"concluir_{id_pass}", use_container_width=True):
                             hora_conclusao = agora_str()
                             atualizar_passagem(id_pass, {
                                 "Status": "Serviço Concluído (Aguardando Notificação ao Cliente)",
@@ -1540,14 +1618,58 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
 
 # ---------------------------------------------------------
-# VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (COCKPIT ÚNICO ZERO-SCROLL)
+# VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (COCKPIT + ATALHOS MOBILE)
 # ---------------------------------------------------------
 elif st.session_state.perfil_logado == "Secretaria (Administração)":
+    telas_sec_mobile = [
+        "Cockpit",
+        "Máquinas e Passagens",
+        "Histórico por Cliente",
+        "Estoque",
+        "Mecânicos",
+        "Logs",
+    ]
+    rotulos_sec_mob = {
+        "Cockpit": "⚡ Orçamentos / Cockpit",
+        "Máquinas e Passagens": "🔍 Buscar Máquinas",
+        "Histórico por Cliente": "👤 Clientes",
+        "Estoque": "📦 Estoque",
+        "Mecânicos": "👥 Mecânicos",
+        "Logs": "📜 Logs",
+    }
+
+    # No mobile exibe botões diretos para cada tela; no desktop vai direto para o cockpit completo
+    st.markdown('<div class="mobile-atalhos-banner">', unsafe_allow_html=True)
+    st.markdown(
+        f"📱 **Atalhos Rápidos ADM / Secretaria** • Tela: **{rotulos_sec_mob.get(st.session_state.tela_secretaria_mobile, 'Cockpit')}**",
+        unsafe_allow_html=True,
+    )
+    for row_start in range(0, len(telas_sec_mobile), 2):
+        par = telas_sec_mobile[row_start : row_start + 2]
+        m_cols = st.columns(len(par))
+        for j, nome_t in enumerate(par):
+            ativa = nome_t == st.session_state.tela_secretaria_mobile
+            rot_b = f"🟡 {rotulos_sec_mob[nome_t]}" if ativa else rotulos_sec_mob[nome_t]
+            if m_cols[j].button(rot_b, key=f"sec_mob_nav_{row_start + j}", use_container_width=True):
+                st.session_state.tela_secretaria_mobile = nome_t
+                st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # Sidebar também oferece troca de tela caso o usuário esteja no mobile
+    st.sidebar.markdown("### 🧭 Atalhos Secretaria")
+    for idx, nome_t in enumerate(telas_sec_mobile):
+        ativa = nome_t == st.session_state.tela_secretaria_mobile
+        rot_s = f"🟡 {rotulos_sec_mob[nome_t]}" if ativa else rotulos_sec_mob[nome_t]
+        if st.sidebar.button(rot_s, key=f"sec_side_nav_{idx}", use_container_width=True):
+            st.session_state.tela_secretaria_mobile = nome_t
+            st.rerun()
+    st.sidebar.markdown("---")
+
     df_maq_tab1 = carregar_visao_consolidada_passagens()
     df_pass_ativas = df_maq_tab1[df_maq_tab1["ID_Passagem"].notna()].copy()
     df_est = carregar_dados("estoque")
 
-    # 1) FAIXA SUPERIOR DE INDICADORES (1 LINHA, 5 KPIS)
+    # FAIXA SUPERIOR DE INDICADORES
     total_precificar = int(
         df_pass_ativas["Status"].isin([
             "Aguardando Precificação (Secretaria)",
@@ -1576,22 +1698,26 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         valid_rec = df_pass_ativas[df_pass_ativas["Status"] != "Orçamento Recusado"]
         receita_ativa = float(pd.to_numeric(valid_rec["Valor_Orcamento"], errors="coerce").fillna(0.0).sum())
 
-    k1, k2, k3, k4, k5 = st.columns(5)
-    k1.metric("📥 Para Precificar", total_precificar)
-    k2.metric("📤 Aguard. Cliente", total_cliente_pend)
-    k3.metric("🏁 Notificar / Retirada", total_concl_pend)
-    k4.metric("🚨 Estoque Crítico", total_est_critico)
-    k5.metric("💰 Volume Orçado", fmt_valor(receita_ativa))
+    if is_mobile_device:
+        k1, k2 = st.columns(2)
+        k1.metric("📥 Para Precificar", total_precificar)
+        k2.metric("📤 Aguard. Cliente", total_cliente_pend)
+        k3, k4 = st.columns(2)
+        k3.metric("🏁 Notificar / Retirada", total_concl_pend)
+        k4.metric("🚨 Estoque Crítico", total_est_critico)
+        st.metric("💰 Volume Orçado", fmt_valor(receita_ativa))
+    else:
+        k1, k2, k3, k4, k5 = st.columns(5)
+        k1.metric("📥 Para Precificar", total_precificar)
+        k2.metric("📤 Aguard. Cliente", total_cliente_pend)
+        k3.metric("🏁 Notificar / Retirada", total_concl_pend)
+        k4.metric("🚨 Estoque Crítico", total_est_critico)
+        k5.metric("💰 Volume Orçado", fmt_valor(receita_ativa))
 
-    # 2) PAINEL DUPLO LADO A LADO (EVITA ROLAGEM VERTICAL)
-    col_esq, col_dir = st.columns([1.25, 1.15], gap="medium")
-
-    # -----------------------------------------------------
-    # COLUNA ESQUERDA: CENTRAL OPERACIONAL DE AÇÃO RÁPIDA (1-2 CLIQUES)
-    # -----------------------------------------------------
-    with col_esq:
+    # Função reutilizável da Fila de Ação Rápida
+    def renderizar_fila_acao_rapida():
         st.markdown(
-            '<div class="cockpit-box-title">⚡ Central de Ação Rápida — Orçamentos & Fluxo de Atendimento</div>',
+            '<div class="cockpit-box-title">⚡ Central de Ação Rápida — Orçamentos & Fluxo</div>',
             unsafe_allow_html=True,
         )
 
@@ -1630,10 +1756,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
             "5. Confirmar Saída / Retirada": ["Serviço Concluído (Aguardando Retirada)"],
         }
 
-        if etapa_filtro in mapa_etapas:
-            fila_filtrada = fila_sec[fila_sec["Status"].isin(mapa_etapas[etapa_filtro])]
-        else:
-            fila_filtrada = fila_sec
+        fila_filtrada = fila_sec[fila_sec["Status"].isin(mapa_etapas[etapa_filtro])] if etapa_filtro in mapa_etapas else fila_sec
 
         if fila_filtrada.empty:
             st.success("✅ Nenhuma pendência nesta fila no momento!")
@@ -1649,32 +1772,39 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                 ]],
                 use_container_width=True,
                 hide_index=True,
-                height=175,
+                height=165,
             )
 
             opcoes_pend = [
                 f"#{int(r['ID_Passagem'])} | Máq. {r['ID']} ({r['Modelo']}) — {r['Cliente_Nome']} [{r['Status']}]"
                 for _, r in fila_filtrada.iterrows()
             ]
-            sel_pend = st.selectbox("Selecione o item para agir imediatamente:", opcoes_pend, key="sel_acao_rapida")
+            sel_pend = st.selectbox("Selecione o item para agir:", opcoes_pend, key="sel_acao_rapida")
             row = fila_filtrada.iloc[opcoes_pend.index(sel_pend)]
             id_pass = int(row["ID_Passagem"])
             st_atual = row["Status"]
 
             with st.container(border=True):
-                c_info1, c_info2 = st.columns([1.4, 1])
-                c_info1.markdown(
-                    f"**Máquina:** `{row['ID']}` — {row['Modelo']}  \n"
-                    f"**Cliente:** {row['Cliente_Nome']} • 📞 `{row['Telefone']}`  \n"
-                    f"**Laudo:** {fmt_data(row['Descricao_Laudo'])} | **Anomalias:** {fmt_data(row['Anomalias'], 'Nenhuma')}"
-                )
-                c_info2.markdown(
-                    f"**Status:** `{st_atual}`  \n"
-                    f"**Orçamento:** **{fmt_valor(row['Valor_Orcamento'])}**  \n"
-                    f"**Mec. Laudo:** {fmt_data(row.get('Mecanico_Laudo'), 'N/A')}"
-                )
+                if is_mobile_device:
+                    st.markdown(
+                        f"**Máquina:** `{row['ID']}` — {row['Modelo']}  \n"
+                        f"**Cliente:** {row['Cliente_Nome']} • 📞 `{row['Telefone']}`  \n"
+                        f"**Status:** `{st_atual}` • **Orçamento:** **{fmt_valor(row['Valor_Orcamento'])}**  \n"
+                        f"**Laudo:** {fmt_data(row['Descricao_Laudo'])}"
+                    )
+                else:
+                    c_info1, c_info2 = st.columns([1.4, 1])
+                    c_info1.markdown(
+                        f"**Máquina:** `{row['ID']}` — {row['Modelo']}  \n"
+                        f"**Cliente:** {row['Cliente_Nome']} • 📞 `{row['Telefone']}`  \n"
+                        f"**Laudo:** {fmt_data(row['Descricao_Laudo'])} | **Anomalias:** {fmt_data(row['Anomalias'], 'Nenhuma')}"
+                    )
+                    c_info2.markdown(
+                        f"**Status:** `{st_atual}`  \n"
+                        f"**Orçamento:** **{fmt_valor(row['Valor_Orcamento'])}**  \n"
+                        f"**Mec. Laudo:** {fmt_data(row.get('Mecanico_Laudo'), 'N/A')}"
+                    )
 
-                # AÇÃO 1: PRECIFICAR
                 if st_atual in [
                     "Aguardando Precificação (Secretaria)",
                     "Aguardando Precificação (Falta Peças no Estoque)",
@@ -1693,16 +1823,10 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                         pass
 
                     with st.form(key=f"form_calc_cockpit_{id_pass}", clear_on_submit=True):
-                        fc1, fc2 = st.columns([1, 1.2])
-                        mao_de_obra = fc1.number_input(
-                            "Mão de Obra (R$)",
-                            min_value=0.0,
-                            value=100.0,
-                            step=10.0,
-                        )
+                        mao_de_obra = st.number_input("Mão de Obra (R$)", min_value=0.0, value=100.0, step=10.0)
                         valor_total = custo_pecas + mao_de_obra
-                        fc2.markdown(f"**Total Final:** `{fmt_valor(valor_total)}`")
-                        if fc2.form_submit_button("✅ Confirmar Cálculo & Liberar Envio", use_container_width=True):
+                        st.markdown(f"**Total Final:** `{fmt_valor(valor_total)}`")
+                        if st.form_submit_button("✅ Confirmar Cálculo & Liberar Envio", use_container_width=True):
                             atualizar_passagem(id_pass, {
                                 "Valor_Orcamento": valor_total,
                                 "Status": "Aguardando Envio ao Cliente",
@@ -1714,9 +1838,8 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                             st.session_state.flash_sucesso = f"Orçamento #{id_pass} precificado em {fmt_valor(valor_total)}!"
                             st.rerun()
 
-                # AÇÃO 2: CONFIRMAR ENVIO AO CLIENTE
                 elif st_atual == "Aguardando Envio ao Cliente":
-                    if st.button(f"📨 Confirmar Envio do Orçamento ao Cliente (#{id_pass})", key=f"env_cli_{id_pass}", use_container_width=True):
+                    if st.button(f"📨 Confirmar Envio ao Cliente (#{id_pass})", key=f"env_cli_{id_pass}", use_container_width=True):
                         hora_envio = agora_str()
                         atualizar_passagem(id_pass, {
                             "Data_Hora_Envio_Orcamento": hora_envio,
@@ -1729,7 +1852,6 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                         st.session_state.flash_sucesso = f"Envio ao cliente confirmado em {hora_envio}!"
                         st.rerun()
 
-                # AÇÃO 3: APROVAR OU REPROVAR
                 elif st_atual == "Standby (Aguardando Resposta do Cliente)":
                     st.caption(f"Enviado ao cliente em: {fmt_data(row.get('Data_Hora_Envio_Orcamento'))}")
                     b1, b2 = st.columns(2)
@@ -1789,7 +1911,6 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                         st.session_state.flash_sucesso = "Orçamento marcado como recusado pelo cliente."
                         st.rerun()
 
-                # AÇÃO 4: NOTIFICAR CONCLUSÃO AO CLIENTE
                 elif st_atual == "Serviço Concluído (Aguardando Notificação ao Cliente)":
                     st.caption(f"Serviço concluído em: {fmt_data(row.get('Data_Hora_Conclusao_Servico'))}")
                     if st.button(f"📲 Confirmar Notificação ao Cliente (#{id_pass})", key=f"notif_conc_{id_pass}", use_container_width=True):
@@ -1805,10 +1926,9 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                         st.session_state.flash_sucesso = f"Cliente notificado em {hora_notif}! Aguardando retirada."
                         st.rerun()
 
-                # AÇÃO 5: CONFIRMAR SAÍDA / RETIRADA
                 elif st_atual == "Serviço Concluído (Aguardando Retirada)":
                     st.caption(f"Cliente notificado em: {fmt_data(row.get('Data_Hora_Notificacao_Conclusao'))}")
-                    if st.button(f"🏁 Confirmar Saída / Retirada da Máquina (#{id_pass})", key=f"retirada_{id_pass}", use_container_width=True):
+                    if st.button(f"🏁 Confirmar Saída / Retirada (#{id_pass})", key=f"retirada_{id_pass}", use_container_width=True):
                         hora_saida = agora_str()
                         atualizar_passagem(id_pass, {
                             "Status": "Entregue / Retirado",
@@ -1821,168 +1941,183 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                         st.session_state.flash_sucesso = f"Saída registrada em {hora_saida}! Ciclo encerrado."
                         st.rerun()
 
-    # -----------------------------------------------------
-    # COLUNA DIREITA: CONSULTAS, CLIENTES, ESTOQUE, EQUIPE & LOGS
-    # -----------------------------------------------------
-    with col_dir:
-        st.markdown(
-            '<div class="cockpit-box-title">📊 Painel Integrado — Máquinas, Clientes, Estoque & Auditoria</div>',
-            unsafe_allow_html=True,
-        )
+    def renderizar_bloco_estoque():
+        criticos = df_est[df_est["Quantidade"] <= df_est["Minimo"]]
+        if not criticos.empty:
+            nomes_crit = ", ".join(f"{r['Nome']} ({r['Quantidade']}/{r['Minimo']})" for _, r in criticos.iterrows())
+            st.warning(f"🚨 Estoque baixo: {nomes_crit}")
 
-        tab_geral, tab_cli, tab_est, tab_mec, tab_logs = st.tabs([
-            "🚜 Máquinas",
-            "👤 Clientes",
-            "📦 Estoque",
-            "👥 Mecânicos",
-            "📜 Logs",
-        ])
+        st.dataframe(df_est, use_container_width=True, hide_index=True, height=175)
 
-        with tab_geral:
-            renderizar_tabela_com_busca("Visão Geral", compacto=True)
+        sub_est_rep, sub_est_cad, sub_est_exc = st.tabs(["🔄 Repor", "➕ Nova Peça", "🗑️ Excluir"])
+        with sub_est_rep:
+            with st.form("form_repor_peca_cockpit", clear_on_submit=True):
+                peca_repor = st.selectbox("Peça:", df_est["Nome"])
+                qtd_adicionar = st.number_input("Qtd a adicionar:", min_value=1, value=5, step=1)
+                if st.form_submit_button("Confirmar Entrada no Estoque", use_container_width=True):
+                    p_idx = df_est[df_est["Nome"] == peca_repor].index[0]
+                    df_est.loc[p_idx, "Quantidade"] += qtd_adicionar
+                    salvar_dataframe(df_est, "estoque")
+                    registrar_log("REPOSICAO_ESTOQUE", f"Adicionadas {qtd_adicionar} unidade(s) de '{peca_repor}'.")
+                    st.session_state.flash_sucesso = f"+{qtd_adicionar}x '{peca_repor}' adicionadas!"
+                    st.rerun()
 
-        with tab_cli:
-            renderizar_visao_historica_cliente(contexto_key="secretaria_cockpit", compacto=True)
-
-        with tab_est:
-            criticos = df_est[df_est["Quantidade"] <= df_est["Minimo"]]
-            if not criticos.empty:
-                nomes_crit = ", ".join(f"{r['Nome']} ({r['Quantidade']}/{r['Minimo']})" for _, r in criticos.iterrows())
-                st.warning(f"🚨 Estoque baixo: {nomes_crit}")
-
-            st.dataframe(df_est, use_container_width=True, hide_index=True, height=175)
-
-            sub_est_rep, sub_est_cad, sub_est_exc = st.tabs(["🔄 Repor", "➕ Nova Peça", "🗑️ Excluir"])
-            with sub_est_rep:
-                with st.form("form_repor_peca_cockpit", clear_on_submit=True):
-                    c1, c2 = st.columns([1.5, 1])
-                    peca_repor = c1.selectbox("Peça:", df_est["Nome"])
-                    qtd_adicionar = c2.number_input("Qtd +:", min_value=1, value=5, step=1)
-                    if st.form_submit_button("Confirmar Entrada no Estoque", use_container_width=True):
-                        p_idx = df_est[df_est["Nome"] == peca_repor].index[0]
-                        df_est.loc[p_idx, "Quantidade"] += qtd_adicionar
+        with sub_est_cad:
+            with st.form("nova_peca_form_cockpit", clear_on_submit=True):
+                nome_p = st.text_input("Nome da Nova Peça")
+                qtd_p = st.number_input("Qtd Inicial", min_value=1, value=10, step=1)
+                min_p = st.number_input("Estoque Mínimo", min_value=1, value=3, step=1)
+                preco_p = st.number_input("Preço Unitário (R$)", min_value=0.0, value=50.0, step=5.0)
+                if st.form_submit_button("Salvar Nova Peça", use_container_width=True):
+                    if not nome_p.strip():
+                        st.warning("Informe o nome da peça.")
+                    else:
+                        novo_id = f"PEC-{len(df_est) + 1:03d}"
+                        nova_p = pd.DataFrame([{
+                            "ID_Peca": novo_id,
+                            "Nome": nome_p.strip(),
+                            "Quantidade": qtd_p,
+                            "Minimo": min_p,
+                            "Preco_Unitario": preco_p,
+                        }])
+                        df_est = pd.concat([df_est, nova_p], ignore_index=True)
                         salvar_dataframe(df_est, "estoque")
-                        registrar_log("REPOSICAO_ESTOQUE", f"Adicionadas {qtd_adicionar} unidade(s) de '{peca_repor}'.")
-                        st.session_state.flash_sucesso = f"+{qtd_adicionar}x '{peca_repor}' adicionadas!"
+                        registrar_log("CADASTRO_PECA", f"Peça '{nome_p.strip()}' ({novo_id}) cadastrada.")
+                        st.session_state.flash_sucesso = f"Peça '{nome_p}' cadastrada!"
                         st.rerun()
 
-            with sub_est_cad:
-                with st.form("nova_peca_form_cockpit", clear_on_submit=True):
-                    nome_p = st.text_input("Nome da Nova Peça")
-                    c1, c2, c3 = st.columns(3)
-                    qtd_p = c1.number_input("Qtd", min_value=1, value=10, step=1)
-                    min_p = c2.number_input("Mín.", min_value=1, value=3, step=1)
-                    preco_p = c3.number_input("R$ Unit.", min_value=0.0, value=50.0, step=5.0)
-                    if st.form_submit_button("Salvar Nova Peça", use_container_width=True):
-                        if not nome_p.strip():
-                            st.warning("Informe o nome da peça.")
-                        else:
-                            novo_id = f"PEC-{len(df_est) + 1:03d}"
-                            nova_p = pd.DataFrame([{
-                                "ID_Peca": novo_id,
-                                "Nome": nome_p.strip(),
-                                "Quantidade": qtd_p,
-                                "Minimo": min_p,
-                                "Preco_Unitario": preco_p,
-                            }])
-                            df_est = pd.concat([df_est, nova_p], ignore_index=True)
-                            salvar_dataframe(df_est, "estoque")
-                            registrar_log("CADASTRO_PECA", f"Peça '{nome_p.strip()}' ({novo_id}) cadastrada.")
-                            st.session_state.flash_sucesso = f"Peça '{nome_p}' cadastrada!"
-                            st.rerun()
+        with sub_est_exc:
+            peca_para_excluir = st.selectbox(
+                "Remover peça:",
+                ["-- Selecionar --"] + list(df_est["Nome"]),
+                key="exc_peca_cockpit",
+            )
+            if peca_para_excluir != "-- Selecionar --":
+                if st.button("⚠️ Confirmar Exclusão", key="btn_exc_peca_cockpit", use_container_width=True):
+                    df_est = df_est[df_est["Nome"] != peca_para_excluir]
+                    salvar_dataframe(df_est, "estoque")
+                    registrar_log("EXCLUIR_PECA", f"Peça '{peca_para_excluir}' removida do estoque.")
+                    st.session_state.flash_sucesso = f"Peça '{peca_para_excluir}' removida!"
+                    st.rerun()
 
-            with sub_est_exc:
-                peca_para_excluir = st.selectbox(
-                    "Remover peça:",
-                    ["-- Selecionar --"] + list(df_est["Nome"]),
-                    key="exc_peca_cockpit",
-                )
-                if peca_para_excluir != "-- Selecionar --":
-                    if st.button("⚠️ Confirmar Exclusão", key="btn_exc_peca_cockpit", use_container_width=True):
-                        df_est = df_est[df_est["Nome"] != peca_para_excluir]
-                        salvar_dataframe(df_est, "estoque")
-                        registrar_log("EXCLUIR_PECA", f"Peça '{peca_para_excluir}' removida do estoque.")
-                        st.session_state.flash_sucesso = f"Peça '{peca_para_excluir}' removida!"
+    def renderizar_bloco_mecanicos():
+        df_usr = carregar_dados("usuarios")
+        mecanicos_df = df_usr[df_usr["Perfil"] == "Mecânico (Oficina)"]
+        st.dataframe(mecanicos_df[["Usuario", "Nome"]], use_container_width=True, hide_index=True, height=145)
+
+        sub_mec_cad, sub_mec_exc = st.tabs(["➕ Novo Mecânico", "🗑️ Remover"])
+        with sub_mec_cad:
+            with st.form("form_novo_mecanico_cockpit", clear_on_submit=True):
+                nome_mec = st.text_input("Nome Completo")
+                user_mec = st.text_input("Login")
+                senha_mec = st.text_input("Senha", type="password")
+                if st.form_submit_button("Cadastrar Mecânico", use_container_width=True):
+                    if not nome_mec.strip() or not user_mec.strip() or not senha_mec.strip():
+                        st.warning("Preencha todos os campos.")
+                    elif user_mec.strip() in df_usr["Usuario"].values:
+                        st.error("Usuário já existe.")
+                    else:
+                        novo_mec_df = pd.DataFrame([{
+                            "Usuario": user_mec.strip(),
+                            "Senha": senha_mec.strip(),
+                            "Perfil": "Mecânico (Oficina)",
+                            "Nome": nome_mec.strip(),
+                        }])
+                        df_usr = pd.concat([df_usr, novo_mec_df], ignore_index=True)
+                        salvar_dataframe(df_usr, "usuarios")
+                        registrar_log("CADASTRO_MECANICO", f"Mecânico '{nome_mec.strip()}' cadastrado.")
+                        st.session_state.flash_sucesso = f"Mecânico {nome_mec} cadastrado!"
                         st.rerun()
 
-        with tab_mec:
-            df_usr = carregar_dados("usuarios")
-            mecanicos_df = df_usr[df_usr["Perfil"] == "Mecânico (Oficina)"]
-            st.dataframe(mecanicos_df[["Usuario", "Nome"]], use_container_width=True, hide_index=True, height=145)
+        with sub_mec_exc:
+            mecs_para_remover = list(mecanicos_df["Nome"])
+            if mecs_para_remover:
+                mec_escolhido = st.selectbox("Mecânico:", ["-- Selecionar --"] + mecs_para_remover, key="exc_mec_cockpit")
+                if mec_escolhido != "-- Selecionar --":
+                    if st.button("⚠️ Remover Acesso", key="btn_exc_mec_cockpit", use_container_width=True):
+                        df_usr = df_usr[df_usr["Nome"] != mec_escolhido]
+                        salvar_dataframe(df_usr, "usuarios")
+                        registrar_log("REMOVER_MECANICO", f"Acesso do mecânico '{mec_escolhido}' removido.")
+                        st.session_state.flash_sucesso = f"Acesso de '{mec_escolhido}' removido!"
+                        st.rerun()
 
-            sub_mec_cad, sub_mec_exc = st.tabs(["➕ Novo Mecânico", "🗑️ Remover"])
-            with sub_mec_cad:
-                with st.form("form_novo_mecanico_cockpit", clear_on_submit=True):
-                    nome_mec = st.text_input("Nome Completo")
-                    c1, c2 = st.columns(2)
-                    user_mec = c1.text_input("Login")
-                    senha_mec = c2.text_input("Senha", type="password")
-                    if st.form_submit_button("Cadastrar Mecânico", use_container_width=True):
-                        if not nome_mec.strip() or not user_mec.strip() or not senha_mec.strip():
-                            st.warning("Preencha todos os campos.")
-                        elif user_mec.strip() in df_usr["Usuario"].values:
-                            st.error("Usuário já existe.")
-                        else:
-                            novo_mec_df = pd.DataFrame([{
-                                "Usuario": user_mec.strip(),
-                                "Senha": senha_mec.strip(),
-                                "Perfil": "Mecânico (Oficina)",
-                                "Nome": nome_mec.strip(),
-                            }])
-                            df_usr = pd.concat([df_usr, novo_mec_df], ignore_index=True)
-                            salvar_dataframe(df_usr, "usuarios")
-                            registrar_log("CADASTRO_MECANICO", f"Mecânico '{nome_mec.strip()}' cadastrado.")
-                            st.session_state.flash_sucesso = f"Mecânico {nome_mec} cadastrado!"
-                            st.rerun()
+    def renderizar_bloco_logs():
+        df_logs = carregar_dados("logs")
+        if df_logs.empty:
+            st.info("Nenhum log registrado.")
+        else:
+            df_logs = df_logs.sort_values("ID_Log", ascending=False)
+            filtro_acao = st.selectbox(
+                "Ação:",
+                ["Todas"] + sorted(df_logs["Acao"].unique().tolist()),
+                key="filtro_log_cockpit",
+            )
+            busca_log = st.text_input("Buscar:", key="busca_log_cockpit")
 
-            with sub_mec_exc:
-                mecs_para_remover = list(mecanicos_df["Nome"])
-                if mecs_para_remover:
-                    mec_escolhido = st.selectbox("Mecânico:", ["-- Selecionar --"] + mecs_para_remover, key="exc_mec_cockpit")
-                    if mec_escolhido != "-- Selecionar --":
-                        if st.button("⚠️ Remover Acesso", key="btn_exc_mec_cockpit", use_container_width=True):
-                            df_usr = df_usr[df_usr["Nome"] != mec_escolhido]
-                            salvar_dataframe(df_usr, "usuarios")
-                            registrar_log("REMOVER_MECANICO", f"Acesso do mecânico '{mec_escolhido}' removido.")
-                            st.session_state.flash_sucesso = f"Acesso de '{mec_escolhido}' removido!"
-                            st.rerun()
+            df_log_view = df_logs.copy()
+            if filtro_acao != "Todas":
+                df_log_view = df_log_view[df_log_view["Acao"] == filtro_acao]
+            if busca_log.strip():
+                termo_l = busca_log.strip().lower()
+                df_log_view = df_log_view[
+                    df_log_view["Usuario"].str.lower().str.contains(termo_l, na=False)
+                    | df_log_view["Detalhes"].str.lower().str.contains(termo_l, na=False)
+                ]
 
-        with tab_logs:
-            df_logs = carregar_dados("logs")
-            if df_logs.empty:
-                st.info("Nenhum log registrado.")
-            else:
-                df_logs = df_logs.sort_values("ID_Log", ascending=False)
-                c_l1, c_l2 = st.columns(2)
-                filtro_acao = c_l1.selectbox(
-                    "Ação:",
-                    ["Todas"] + sorted(df_logs["Acao"].unique().tolist()),
-                    key="filtro_log_cockpit",
-                )
-                busca_log = c_l2.text_input("Buscar:", key="busca_log_cockpit")
+            st.dataframe(
+                df_log_view[["ID_Log", "Data_Hora", "Usuario", "Acao", "Detalhes"]],
+                use_container_width=True,
+                hide_index=True,
+                height=195,
+            )
 
-                df_log_view = df_logs.copy()
-                if filtro_acao != "Todas":
-                    df_log_view = df_log_view[df_log_view["Acao"] == filtro_acao]
-                if busca_log.strip():
-                    termo_l = busca_log.strip().lower()
-                    df_log_view = df_log_view[
-                        df_log_view["Usuario"].str.lower().str.contains(termo_l, na=False)
-                        | df_log_view["Detalhes"].str.lower().str.contains(termo_l, na=False)
-                    ]
+            csv_logs = df_log_view.to_csv(index=False).encode("utf-8")
+            st.download_button(
+                label="⬇️ Exportar Logs (CSV)",
+                data=csv_logs,
+                file_name=f"logs_oficina_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                mime="text/csv",
+                use_container_width=True,
+            )
 
-                st.dataframe(
-                    df_log_view[["ID_Log", "Data_Hora", "Usuario", "Acao", "Detalhes"]],
-                    use_container_width=True,
-                    hide_index=True,
-                    height=195,
-                )
+    # No mobile, se escolheu uma tela específica diferente de "Cockpit", exibe diretamente essa tela
+    tela_sec_mob = st.session_state.tela_secretaria_mobile
+    if is_mobile_device and tela_sec_mob != "Cockpit":
+        if tela_sec_mob == "Máquinas e Passagens":
+            renderizar_tabela_com_busca("🔍 Buscar Máquinas e Passagens", compacto=True)
+        elif tela_sec_mob == "Histórico por Cliente":
+            renderizar_visao_historica_cliente(contexto_key="sec_mob", compacto=True)
+        elif tela_sec_mob == "Estoque":
+            renderizar_bloco_estoque()
+        elif tela_sec_mob == "Mecânicos":
+            renderizar_bloco_mecanicos()
+        elif tela_sec_mob == "Logs":
+            renderizar_bloco_logs()
+    else:
+        col_esq, col_dir = st.columns([1.25, 1.15], gap="medium") if not is_mobile_device else (st.container(), st.container())
 
-                csv_logs = df_log_view.to_csv(index=False).encode("utf-8")
-                st.download_button(
-                    label="⬇️ Exportar Logs (CSV)",
-                    data=csv_logs,
-                    file_name=f"logs_oficina_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                    mime="text/csv",
-                    use_container_width=True,
-                )
+        with col_esq:
+            renderizar_fila_acao_rapida()
+
+        with col_dir:
+            st.markdown(
+                '<div class="cockpit-box-title">📊 Painel Integrado — Máquinas, Clientes, Estoque & Auditoria</div>',
+                unsafe_allow_html=True,
+            )
+            tab_geral, tab_cli, tab_est, tab_mec, tab_logs = st.tabs([
+                "🚜 Máquinas",
+                "👤 Clientes",
+                "📦 Estoque",
+                "👥 Mecânicos",
+                "📜 Logs",
+            ])
+            with tab_geral:
+                renderizar_tabela_com_busca("Visão Geral", compacto=True)
+            with tab_cli:
+                renderizar_visao_historica_cliente(contexto_key="secretaria_cockpit", compacto=True)
+            with tab_est:
+                renderizar_bloco_estoque()
+            with tab_mec:
+                renderizar_bloco_mecanicos()
+            with tab_logs:
+                renderizar_bloco_logs()
