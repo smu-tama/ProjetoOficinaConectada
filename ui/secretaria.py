@@ -107,6 +107,168 @@ def _render_kpi_row_desktop(df_pass_ativas, df_est) -> None:
     )
 
 
+def _render_acoes_passagem(row, is_mobile: bool, logar_acao, prefixo: str) -> None:
+    id_pass = int(row["ID_Passagem"])
+    st_atual = row["Status"]
+
+    if st_atual in [
+        "Aguardando Precificação (Secretaria)",
+        "Aguardando Precificação (Falta Peças no Estoque)",
+    ]:
+        custo_pecas = calcular_custo_pecas_json(row.get("Pecas_Solicitadas"))
+        with st.form(key=f"form_calc_{prefixo}_{id_pass}", clear_on_submit=True):
+            mao_de_obra = st.number_input(
+                "Mão de Obra (R$)", min_value=0.0, value=100.0, step=10.0
+            )
+            valor_total = custo_pecas + mao_de_obra
+            st.markdown(f"**Total Final:** `{fmt_valor(valor_total)}`")
+            if st.form_submit_button(
+                "✅ Confirmar Cálculo & Liberar Envio",
+                use_container_width=True,
+            ):
+                precificar_passagem(
+                    id_pass, str(row["ID"]), valor_total, logar_acao
+                )
+                st.session_state.flash_sucesso = (
+                    f"Orçamento #{id_pass} precificado!"
+                )
+                st.rerun()
+    elif st_atual == "Aguardando Envio ao Cliente":
+        if st.button(
+            f"📨 Confirmar Envio ao Cliente (#{id_pass})",
+            key=f"btn_env_{prefixo}_{id_pass}",
+            use_container_width=True,
+        ):
+            enviar_orcamento_ao_cliente(
+                id_pass, str(row["ID"]), row["Cliente_Nome"], logar_acao
+            )
+            st.session_state.flash_sucesso = "Envio ao cliente confirmado!"
+            st.rerun()
+    elif st_atual == "Standby (Aguardando Resposta do Cliente)":
+        b1, b2 = st.columns(2)
+        if b1.button(
+            "✅ Cliente APROVOU",
+            key=f"btn_aprov_{prefixo}_{id_pass}",
+            use_container_width=True,
+        ):
+            novo_st = processar_resposta_cliente(
+                id_pass,
+                str(row["ID"]),
+                row["Cliente_Nome"],
+                True,
+                row["Pecas_Solicitadas"],
+                logar_acao,
+            )
+            st.session_state.flash_sucesso = (
+                f"Aprovação registrada ({novo_st})!"
+            )
+            st.rerun()
+        if b2.button(
+            "❌ Cliente REPROVOU",
+            key=f"btn_reprov_{prefixo}_{id_pass}",
+            use_container_width=True,
+        ):
+            processar_resposta_cliente(
+                id_pass,
+                str(row["ID"]),
+                row["Cliente_Nome"],
+                False,
+                row["Pecas_Solicitadas"],
+                logar_acao,
+            )
+            st.session_state.flash_sucesso = "Orçamento recusado."
+            st.rerun()
+    elif (
+        st_atual
+        == "Serviço Concluído (Aguardando Notificação ao Cliente)"
+    ):
+        if st.button(
+            f"📲 Confirmar Notificação ao Cliente (#{id_pass})",
+            key=f"btn_notif_{prefixo}_{id_pass}",
+            use_container_width=True,
+        ):
+            notificar_conclusao_cliente(
+                id_pass, str(row["ID"]), row["Cliente_Nome"], logar_acao
+            )
+            st.session_state.flash_sucesso = "Cliente notificado!"
+            st.rerun()
+    elif st_atual == "Serviço Concluído (Aguardando Retirada)":
+        if st.button(
+            f"🏁 Confirmar Saída / Retirada (#{id_pass})",
+            key=f"btn_saida_{prefixo}_{id_pass}",
+            use_container_width=True,
+        ):
+            confirmar_saida_maquina(
+                id_pass, str(row["ID"]), logar_acao
+            )
+            st.session_state.flash_sucesso = "Saída registrada!"
+            st.rerun()
+
+
+def _render_cockpit_mobile(df_pass_ativas, logar_acao) -> None:
+    st.markdown(
+        """
+        <div class="mob-hub-hero">
+            <h3>⚡ Central da Secretaria</h3>
+            <p>Orçamentos, aprovação de clientes e retirada</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    status_acao = [
+        "Aguardando Precificação (Falta Peças no Estoque)",
+        "Aguardando Precificação (Secretaria)",
+        "Aguardando Envio ao Cliente",
+        "Standby (Aguardando Resposta do Cliente)",
+        "Serviço Concluído (Aguardando Notificação ao Cliente)",
+        "Serviço Concluído (Aguardando Retirada)",
+    ]
+    fila = df_pass_ativas[df_pass_ativas["Status"].isin(status_acao)].copy()
+    if fila.empty:
+        st.success("✅ Nenhuma pendência na fila no momento!")
+        return
+
+    opcoes_pend = [
+        f"#{int(r['ID_Passagem'])} | Máq. {r['ID']} — {r['Cliente_Nome']}"
+        for _, r in fila.iterrows()
+    ]
+    sel_pend = st.selectbox(
+        "Selecione a passagem:", opcoes_pend, key="sec_mob_sel_pend"
+    )
+    row = fila.iloc[opcoes_pend.index(sel_pend)]
+
+    st.markdown(
+        f"""
+        <div class="mob-sec-card">
+            <div class="mob-sec-card-header">
+                <b>#{int(row['ID_Passagem'])} • {row['Cliente_Nome']}</b>
+                <span class="mob-sec-badge">{row['Status']}</span>
+            </div>
+            <div style="font-size: 0.82rem; color: #132238;">
+                <b>Máquina:</b> {row['Modelo']} (ID {row['ID']})<br>
+                <b>Orçamento:</b> {fmt_valor(row['Valor_Orcamento'])}
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    exibir_galeria_imagens(
+        row.get("Fotos_Cadastro"),
+        "📸 Fotos na Chegada",
+        is_mobile=True,
+        cols_qtd=2,
+    )
+    exibir_galeria_imagens(
+        row.get("Fotos_Laudo"),
+        "🛠️ Fotos do Laudo",
+        is_mobile=True,
+        cols_qtd=2,
+    )
+    _render_acoes_passagem(row, is_mobile=True, logar_acao=logar_acao, prefixo="mob")
+
+
 def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
     st.markdown(
         """
@@ -148,27 +310,24 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
         )
         if fila.empty:
             st.success("✅ Nenhuma pendência na fila no momento!")
-            st.markdown("</div>", unsafe_allow_html=True)
-            return
-
-        st.dataframe(
-            fila[
-                [
-                    "ID_Passagem",
-                    "ID",
-                    "Cliente_Nome",
-                    "Modelo",
-                    "Status",
-                    "Valor_Orcamento",
-                ]
-            ],
-            use_container_width=True,
-            hide_index=True,
-            height=250,
-        )
+        else:
+            st.dataframe(
+                fila[
+                    [
+                        "ID_Passagem",
+                        "ID",
+                        "Cliente_Nome",
+                        "Modelo",
+                        "Status",
+                        "Valor_Orcamento",
+                    ]
+                ],
+                use_container_width=True,
+                hide_index=True,
+                height=250,
+            )
         st.markdown("</div>", unsafe_allow_html=True)
 
-        # Resumo rápido de estoque crítico na parte inferior esquerda (estilo cards inferiores do print)
         st.markdown(
             """
             <div class="sec-panel-card">
@@ -199,113 +358,34 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
             """,
             unsafe_allow_html=True,
         )
-        opcoes_pend = [
-            f"#{int(r['ID_Passagem'])} | Máq. {r['ID']} — {r['Cliente_Nome']} [{r['Status']}]"
-            for _, r in fila.iterrows()
-        ]
-        sel_pend = st.selectbox(
-            "Selecione a passagem:", opcoes_pend, key="sec_desk_sel_pend"
-        )
-        row = fila.iloc[opcoes_pend.index(sel_pend)]
-        id_pass = int(row["ID_Passagem"])
-        st_atual = row["Status"]
+        if fila.empty:
+            st.info("Sem passagens pendentes para ação no momento.")
+        else:
+            opcoes_pend = [
+                f"#{int(r['ID_Passagem'])} | Máq. {r['ID']} — {r['Cliente_Nome']} [{r['Status']}]"
+                for _, r in fila.iterrows()
+            ]
+            sel_pend = st.selectbox(
+                "Selecione a passagem:", opcoes_pend, key="sec_desk_sel_pend"
+            )
+            row = fila.iloc[opcoes_pend.index(sel_pend)]
 
-        st.caption(
-            f"Máquina: **{row['Modelo']}** • Orçamento atual: **{fmt_valor(row['Valor_Orcamento'])}**"
-        )
-        exibir_galeria_imagens(
-            row.get("Fotos_Cadastro"),
-            "📸 Fotos na Chegada",
-            is_mobile=False,
-            cols_qtd=2,
-        )
-        exibir_galeria_imagens(
-            row.get("Fotos_Laudo"),
-            "🛠️ Fotos do Laudo",
-            is_mobile=False,
-            cols_qtd=2,
-        )
-
-        if st_atual in [
-            "Aguardando Precificação (Secretaria)",
-            "Aguardando Precificação (Falta Peças no Estoque)",
-        ]:
-            custo_pecas = calcular_custo_pecas_json(row.get("Pecas_Solicitadas"))
-            with st.form(key=f"form_calc_desk_{id_pass}", clear_on_submit=True):
-                mao_de_obra = st.number_input(
-                    "Mão de Obra (R$)", min_value=0.0, value=100.0, step=10.0
-                )
-                valor_total = custo_pecas + mao_de_obra
-                st.markdown(f"**Total Final:** `{fmt_valor(valor_total)}`")
-                if st.form_submit_button(
-                    "✅ Confirmar Cálculo & Liberar Envio",
-                    use_container_width=True,
-                ):
-                    precificar_passagem(
-                        id_pass, str(row["ID"]), valor_total, logar_acao
-                    )
-                    st.session_state.flash_sucesso = (
-                        f"Orçamento #{id_pass} precificado!"
-                    )
-                    st.rerun()
-        elif st_atual == "Aguardando Envio ao Cliente":
-            if st.button(
-                f"📨 Confirmar Envio ao Cliente (#{id_pass})",
-                use_container_width=True,
-            ):
-                enviar_orcamento_ao_cliente(
-                    id_pass, str(row["ID"]), row["Cliente_Nome"], logar_acao
-                )
-                st.session_state.flash_sucesso = "Envio ao cliente confirmado!"
-                st.rerun()
-        elif st_atual == "Standby (Aguardando Resposta do Cliente)":
-            b1, b2 = st.columns(2)
-            if b1.button("✅ Cliente APROVOU", use_container_width=True):
-                novo_st = processar_resposta_cliente(
-                    id_pass,
-                    str(row["ID"]),
-                    row["Cliente_Nome"],
-                    True,
-                    row["Pecas_Solicitadas"],
-                    logar_acao,
-                )
-                st.session_state.flash_sucesso = (
-                    f"Aprovação registrada ({novo_st})!"
-                )
-                st.rerun()
-            if b2.button("❌ Cliente REPROVOU", use_container_width=True):
-                processar_resposta_cliente(
-                    id_pass,
-                    str(row["ID"]),
-                    row["Cliente_Nome"],
-                    False,
-                    row["Pecas_Solicitadas"],
-                    logar_acao,
-                )
-                st.session_state.flash_sucesso = "Orçamento recusado."
-                st.rerun()
-        elif (
-            st_atual
-            == "Serviço Concluído (Aguardando Notificação ao Cliente)"
-        ):
-            if st.button(
-                f"📲 Confirmar Notificação ao Cliente (#{id_pass})",
-                use_container_width=True,
-            ):
-                notificar_conclusao_cliente(
-                    id_pass, str(row["ID"]), row["Cliente_Nome"], logar_acao
-                )
-                st.session_state.flash_sucesso = "Cliente notificado!"
-                st.rerun()
-        elif st_atual == "Serviço Concluído (Aguardando Retirada)":
-            if st.button(
-                f"🏁 Confirmar Saída / Retirada (#{id_pass})",
-                use_container_width=True,
-            ):
-                confirmar_saida_maquina(
-                    id_pass, str(row["ID"]), logar_acao
-                )
-                st.session_state.flash_sucesso = "Saída registrada!"
-                st.rerun()
-
+            st.caption(
+                f"Máquina: **{row['Modelo']}** • Orçamento atual: **{fmt_valor(row['Valor_Orcamento'])}**"
+            )
+            exibir_galeria_imagens(
+                row.get("Fotos_Cadastro"),
+                "📸 Fotos na Chegada",
+                is_mobile=False,
+                cols_qtd=2,
+            )
+            exibir_galeria_imagens(
+                row.get("Fotos_Laudo"),
+                "🛠️ Fotos do Laudo",
+                is_mobile=False,
+                cols_qtd=2,
+            )
+            _render_acoes_passagem(
+                row, is_mobile=False, logar_acao=logar_acao, prefixo="desk"
+            )
         st.markdown("</div>", unsafe_allow_html=True)
