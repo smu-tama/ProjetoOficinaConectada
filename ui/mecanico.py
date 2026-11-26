@@ -1,6 +1,11 @@
 import pandas as pd
 import streamlit as st
 
+from ui.navegacao import (
+    renderizar_barra_navegacao_ativa,
+    renderizar_grade_botoes_inicial,
+)
+
 from repositories.oficina_repo import (
     carregar_tabela,
     obter_visao_consolidada,
@@ -473,3 +478,46 @@ def _render_execucao(is_mobile: bool, logar_acao) -> None:
                     )
                     st.session_state.flash_sucesso = "Serviço concluído!"
                     st.rerun()
+def renderizar_visao_mecanico(is_mobile: bool, logar_acao) -> None:
+    """Renderiza o hub e as telas operacionais do perfil Mecânico."""
+    if "tela_mecanico" not in st.session_state:
+        st.session_state.tela_mecanico = "Início"
+
+    tela_atual = st.session_state.tela_mecanico
+
+    if tela_atual == "Início":
+        renderizar_grade_botoes_inicial(
+            modulos_config=MODULOS_MECANICO_HUB,
+            chave_estado="tela_mecanico",
+            titulo_hub="🔧 Central da Oficina — Mecânico",
+            subtitulo_hub="Selecione um módulo para registrar entradas, laudos ou execuções",
+            is_mobile=is_mobile,
+        )
+        return
+
+    renderizar_barra_navegacao_ativa(
+        opcoes_telas=TELAS_MECANICO,
+        chave_estado="tela_mecanico",
+        rotulos_curtos=ROTULOS_MECANICO,
+        is_mobile=is_mobile,
+    )
+
+    if tela_atual == "Entrada / Passagens":
+        _render_entrada_passagens(is_mobile=is_mobile, logar_acao=logar_acao)
+    elif tela_atual == "Máquinas e Passagens":
+        renderizar_tabela_com_busca(
+            is_mobile=is_mobile,
+            perfil_logado=st.session_state.get("perfil_logado"),
+            logar_acao_fn=logar_acao,
+        )
+    elif tela_atual == "Laudo Técnico":
+        _render_laudo_tecnico(is_mobile=is_mobile, logar_acao=logar_acao)
+    elif tela_atual == "Execução":
+        _render_execucao(is_mobile=is_mobile, logar_acao=logar_acao)
+    elif tela_atual == "Etiqueta QR Code":
+        _render_etiqueta_qr()
+    elif tela_atual == "Histórico por Cliente":
+        renderizar_visao_historica_cliente(
+            contexto_key="mec",
+            is_mobile=is_mobile,
+        )
