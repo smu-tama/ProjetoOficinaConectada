@@ -1,16 +1,14 @@
-import random
-
 import pandas as pd
 import streamlit as st
 
-from database.connection import agora_str
 from repositories.oficina_repo import (
     carregar_tabela,
     obter_visao_consolidada,
-    salvar_tabela_df,
 )
 from services.fluxo_service import (
     abrir_nova_passagem_com_fotos,
+    cadastrar_cliente,
+    cadastrar_maquina_fluxo,
     concluir_servico_passagem,
     iniciar_servico_passagem,
     redefinir_laudo_passagem,
@@ -89,7 +87,10 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
     df_cli = carregar_tabela("clientes")
     opcoes_clientes = (
         ["-- Selecionar Cliente Existente --"]
-        + list(df_cli["Nome"] + " (" + df_cli["Telefone"] + ")")
+        + [
+            f"{r['ID_Cliente']} — {r['Nome']} ({r['Telefone']})"
+            for _, r in df_cli.iterrows()
+        ]
         + ["+ Cadastrar Novo Cliente"]
     )
     cliente_sel = st.selectbox("Proprietário da Máquina:", opcoes_clientes)
@@ -110,30 +111,16 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
                         "Telefone inválido! Digite 10 ou 11 dígitos com DDD."
                     )
                 else:
-                    novo_id_cli = f"CLI-{len(df_cli) + 1:03d}"
-                    novo_c = pd.DataFrame([
-                        {
-                            "ID_Cliente": novo_id_cli,
-                            "Nome": novo_nome.strip(),
-                            "Telefone": tel_valido,
-                        }
-                    ])
-                    salvar_tabela_df(
-                        pd.concat([df_cli, novo_c], ignore_index=True),
-                        "clientes",
-                    )
-                    logar_acao(
-                        "CADASTRO_CLIENTE",
-                        f"Cliente '{novo_nome.strip()}' ({novo_id_cli}) cadastrado.",
-                    )
+                    cadastrar_cliente(novo_nome, tel_valido, logar_acao)
                     st.session_state.flash_sucesso = (
-                        f"Cliente {novo_nome} cadastrado!"
+                        f"Cliente {novo_nome.strip()} cadastrado!"
                     )
                     st.rerun()
     elif cliente_sel != "-- Selecionar Cliente Existente --":
-        nome_cli_final = cliente_sel.split(" (")[0]
-        cli_row = df_cli[df_cli["Nome"] == nome_cli_final].iloc[0]
+        id_cli_sel = cliente_sel.split(" — ")[0]
+        cli_row = df_cli[df_cli["ID_Cliente"].astype(str) == id_cli_sel].iloc[0]
         id_cli_final = cli_row["ID_Cliente"]
+        nome_cli_final = cli_row["Nome"]
         tel_cli_final = cli_row["Telefone"]
 
     st.markdown("---")
@@ -166,58 +153,27 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
                 elif not modelo.strip():
                     st.error("Preencha o modelo da máquina.")
                 else:
-                    codigo_num = (
-                        codigo_manual.strip()
-                        or f"{random.randint(1000, 9999)}"
+                    ok, msg_ou_cod, id_pass = cadastrar_maquina_fluxo(
+                        id_cliente=id_cli_final,
+                        cliente_nome=nome_cli_final,
+                        telefone=tel_cli_final,
+                        modelo=modelo,
+                        codigo_manual=codigo_manual,
+                        obs_cadastro=obs_cadastro,
+                        fotos_json=serializar_imagens(fotos_cadastro),
+                        abrir_passagem_agora=abrir_passagem_agora,
+                        logar_acao_fn=logar_acao,
                     )
-                    df_maq = carregar_tabela("maquinas")
-                    if (
-                        not df_maq.empty
-                        and codigo_num in df_maq["ID"].astype(str).values
-                    ):
-                        st.error(
-                            f"Já existe máquina com o código {codigo_num}!"
-                        )
+                    if not ok:
+                        st.error(msg_ou_cod)
                     else:
-                        data_hora_atual = agora_str()
-                        nova_maq = {
-                            "ID": str(codigo_num),
-                            "QR_Code": f"QR-EQP-{codigo_num}",
-                            "ID_Cliente": id_cli_final,
-                            "Cliente_Nome": nome_cli_final,
-                            "Telefone": tel_cli_final,
-                            "Modelo": modelo.strip(),
-                            "Data_Hora_Cadastro": data_hora_atual,
-                            "Obs_Cadastro": obs_cadastro,
-                            "Fotos_Cadastro": serializar_imagens(
-                                fotos_cadastro
-                            ),
-                        }
-                        salvar_tabela_df(
-                            pd.concat(
-                                [df_maq, pd.DataFrame([nova_maq])],
-                                ignore_index=True,
-                            ),
-                            "maquinas",
-                        )
-                        if abrir_passagem_agora:
-                            id_pass, _ = abrir_nova_passagem_com_fotos(
-                                str(codigo_num), "[]", logar_acao
-                            )
-                            logar_acao(
-                                "ENTRADA_MAQUINA_PASSAGEM",
-                                f"Máquina ID {codigo_num} cadastrada com passagem #{id_pass}.",
-                            )
+                        if id_pass is not None:
                             st.session_state.flash_sucesso = (
-                                f"Máquina ID {codigo_num} cadastrada e passagem #{id_pass} aberta!"
+                                f"Máquina ID {msg_ou_cod} cadastrada e passagem #{id_pass} aberta!"
                             )
                         else:
-                            logar_acao(
-                                "CADASTRO_MAQUINA_SEM_PASSAGEM",
-                                f"Máquina ID {codigo_num} cadastrada sem passagem aberta.",
-                            )
                             st.session_state.flash_sucesso = (
-                                f"Máquina ID {codigo_num} cadastrada!"
+                                f"Máquina ID {msg_ou_cod} cadastrada!"
                             )
                         st.rerun()
     else:
@@ -238,9 +194,9 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
             ]
             maq_sel = st.selectbox("Selecione a Máquina:", opcoes_maq)
             id_maq_sel = maq_sel.split(" — ")[0]
-            row_maq_sel = df_maq_exist[df_maq_exist["ID"] == id_maq_sel].iloc[
-                0
-            ]
+            row_maq_sel = df_maq_exist[
+                df_maq_exist["ID"].astype(str) == str(id_maq_sel)
+            ].iloc[0]
 
             exibir_galeria_imagens(
                 row_maq_sel.get("Fotos_Cadastro"),
@@ -279,7 +235,9 @@ def _render_etiqueta_qr() -> None:
         return
 
     maq_etiqueta_id = st.selectbox("Selecione a máquina:", df_maq["ID"])
-    maq_info = df_maq[df_maq["ID"] == maq_etiqueta_id].iloc[0]
+    maq_info = df_maq[
+        df_maq["ID"].astype(str) == str(maq_etiqueta_id)
+    ].iloc[0]
     qr_b64 = gerar_qrcode_base64(str(maq_info["ID"]))
     st.markdown(
         f"""

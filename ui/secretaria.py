@@ -1,7 +1,5 @@
-import json
 import streamlit as st
 
-from repositories.oficina_repo import carregar_tabela
 from services.fluxo_service import (
     calcular_custo_pecas_json,
     confirmar_saida_maquina,
@@ -301,98 +299,95 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
     col_esq, col_dir = st.columns([1.35, 1])
 
     with col_esq:
-        st.markdown(
-            """
-            <div class="sec-panel-card">
+        with st.container(border=True):
+            st.markdown(
+                """
                 <div class="sec-panel-header">
                     <p class="sec-panel-title">Fila Operacional de Passagens</p>
                 </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if fila.empty:
-            st.success("✅ Nenhuma pendência na fila no momento!")
-        else:
-            st.dataframe(
-                fila[
-                    [
-                        "ID_Passagem",
-                        "ID",
-                        "Cliente_Nome",
-                        "Modelo",
-                        "Status",
-                        "Valor_Orcamento",
-                    ]
-                ],
-                use_container_width=True,
-                hide_index=True,
-                height=250,
+                """,
+                unsafe_allow_html=True,
             )
-        st.markdown("</div>", unsafe_allow_html=True)
+            if fila.empty:
+                st.success("✅ Nenhuma pendência na fila no momento!")
+            else:
+                st.dataframe(
+                    fila[
+                        [
+                            "ID_Passagem",
+                            "ID",
+                            "Cliente_Nome",
+                            "Modelo",
+                            "Status",
+                            "Valor_Orcamento",
+                        ]
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                    height=250,
+                )
 
-        st.markdown(
-            """
-            <div class="sec-panel-card">
+        with st.container(border=True):
+            st.markdown(
+                """
                 <div class="sec-panel-header">
                     <p class="sec-panel-title">Resumo do Almoxarifado</p>
                 </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if df_est.empty:
-            st.info("Nenhuma peça cadastrada.")
-        else:
-            st.dataframe(
-                df_est[
-                    ["ID_Peca", "Nome", "Quantidade", "Minimo", "Preco_Unitario"]
-                ],
-                use_container_width=True,
-                hide_index=True,
-                height=160,
+                """,
+                unsafe_allow_html=True,
             )
-        st.markdown("</div>", unsafe_allow_html=True)
+            if df_est.empty:
+                st.info("Nenhuma peça cadastrada.")
+            else:
+                st.dataframe(
+                    df_est[
+                        ["ID_Peca", "Nome", "Quantidade", "Minimo", "Preco_Unitario"]
+                    ],
+                    use_container_width=True,
+                    hide_index=True,
+                    height=160,
+                )
 
     with col_dir:
-        st.markdown(
-            """
-            <div class="sec-panel-card">
+        with st.container(border=True):
+            st.markdown(
+                """
                 <div class="sec-panel-header">
                     <p class="sec-panel-title">Ação Rápida na Passagem</p>
                 </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if fila.empty:
-            st.info("Sem passagens pendentes para ação no momento.")
-        else:
-            opcoes_pend = [
-                f"#{int(r['ID_Passagem'])} | Máq. {r['ID']} — {r['Cliente_Nome']} [{r['Status']}]"
-                for _, r in fila.iterrows()
-            ]
-            sel_pend = st.selectbox(
-                "Selecione a passagem:", opcoes_pend, key="sec_desk_sel_pend"
+                """,
+                unsafe_allow_html=True,
             )
-            row = fila.iloc[opcoes_pend.index(sel_pend)]
+            if fila.empty:
+                st.info("Sem passagens pendentes para ação no momento.")
+            else:
+                opcoes_pend = [
+                    f"#{int(r['ID_Passagem'])} | Máq. {r['ID']} — {r['Cliente_Nome']} [{r['Status']}]"
+                    for _, r in fila.iterrows()
+                ]
+                sel_pend = st.selectbox(
+                    "Selecione a passagem:", opcoes_pend, key="sec_desk_sel_pend"
+                )
+                row = fila.iloc[opcoes_pend.index(sel_pend)]
 
-            st.caption(
-                f"Máquina: **{row['Modelo']}** • Orçamento atual: **{fmt_valor(row['Valor_Orcamento'])}**"
-            )
-            exibir_galeria_imagens(
-                row.get("Fotos_Cadastro"),
-                "📸 Fotos na Chegada",
-                is_mobile=False,
-                cols_qtd=2,
-            )
-            exibir_galeria_imagens(
-                row.get("Fotos_Laudo"),
-                "🛠️ Fotos do Laudo",
-                is_mobile=False,
-                cols_qtd=2,
-            )
-            _render_acoes_passagem(
-                row, is_mobile=False, logar_acao=logar_acao, prefixo="desk"
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
+                st.caption(
+                    f"Máquina: **{row['Modelo']}** • Orçamento atual: **{fmt_valor(row['Valor_Orcamento'])}**"
+                )
+                exibir_galeria_imagens(
+                    row.get("Fotos_Cadastro"),
+                    "📸 Fotos na Chegada",
+                    is_mobile=False,
+                    cols_qtd=2,
+                )
+                exibir_galeria_imagens(
+                    row.get("Fotos_Laudo"),
+                    "🛠️ Fotos do Laudo",
+                    is_mobile=False,
+                    cols_qtd=2,
+                )
+                _render_acoes_passagem(
+                    row, is_mobile=False, logar_acao=logar_acao, prefixo="desk"
+                )
 
 
 def renderizar_cockpit_secretaria(

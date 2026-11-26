@@ -215,6 +215,7 @@ def renderizar_visao_historica_cliente(
         df_cli_view = df_cli_view[
             df_cli_view["Nome"].str.lower().str.contains(termo, na=False)
             | df_cli_view["ID_Cliente"]
+            .astype(str)
             .str.lower()
             .str.contains(termo, na=False)
             | df_cli_view["Telefone"]
@@ -227,14 +228,14 @@ def renderizar_visao_historica_cliente(
         st.warning("Nenhum cliente corresponde ao filtro informado.")
         return
 
-    opcoes_cli = [
-        f"{r['ID_Cliente']} — {r['Nome']} ({r['Telefone']})"
-        for _, r in df_cli_view.iterrows()
-    ]
-    sel_cli = c_sel.selectbox(
-        "Cliente:", opcoes_cli, key=f"sel_cli_{contexto_key}"
+    indices_cli = df_cli_view.index.tolist()
+    sel_idx = c_sel.selectbox(
+        "Cliente:",
+        indices_cli,
+        format_func=lambda idx: f"{df_cli_view.loc[idx, 'ID_Cliente']} — {df_cli_view.loc[idx, 'Nome']} ({df_cli_view.loc[idx, 'Telefone']})",
+        key=f"sel_cli_{contexto_key}",
     )
-    cli_row = df_cli_view.iloc[opcoes_cli.index(sel_cli)]
+    cli_row = df_cli_view.loc[sel_idx]
     id_cli = str(cli_row["ID_Cliente"])
 
     maquinas_cli, passagens_cli = obter_historico_por_cliente(id_cli)
@@ -399,13 +400,16 @@ def renderizar_tabela_com_busca(
             termo = termo_busca.lower()
             df_exibicao = df_exibicao[
                 df_exibicao["Cliente_Nome"]
+                .astype(str)
                 .str.lower()
                 .str.contains(termo, na=False)
-                | df_exibicao["ID"].str.lower().str.contains(termo, na=False)
+                | df_exibicao["ID"].astype(str).str.lower().str.contains(termo, na=False)
                 | df_exibicao["Modelo"]
+                .astype(str)
                 .str.lower()
                 .str.contains(termo, na=False)
                 | df_exibicao["Status"]
+                .astype(str)
                 .str.lower()
                 .str.contains(termo, na=False)
             ]
@@ -442,7 +446,9 @@ def renderizar_tabela_com_busca(
         )
         if sel_det != "-- Selecionar Máquina --":
             id_detalhe = sel_det.split(" — ")[0]
-            row_maq = df_maq_base[df_maq_base["ID"] == id_detalhe].iloc[0]
+            row_maq = df_maq_base[
+                df_maq_base["ID"].astype(str) == str(id_detalhe)
+            ].iloc[0]
             renderizar_ficha_completa_maquina(row_maq, is_mobile=is_mobile)
 
             if perfil_logado == "Secretaria (Administração)":
@@ -469,12 +475,12 @@ def renderizar_tabela_com_busca(
             if codigo_lido:
                 st.success(f"🎯 QR Code Lido: **{codigo_lido}**")
                 maq_encontrada = df_maq_base[
-                    df_maq_base["QR_Code"].str.contains(
-                        codigo_lido, case=False, na=False
-                    )
-                    | df_maq_base["ID"].str.contains(
-                        codigo_lido, case=False, na=False
-                    )
+                    df_maq_base["QR_Code"]
+                    .astype(str)
+                    .str.contains(codigo_lido, case=False, na=False)
+                    | df_maq_base["ID"]
+                    .astype(str)
+                    .str.contains(codigo_lido, case=False, na=False)
                 ]
                 if not maq_encontrada.empty:
                     renderizar_ficha_completa_maquina(
