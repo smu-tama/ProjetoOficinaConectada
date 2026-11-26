@@ -38,7 +38,7 @@ if HAS_ST_JS:
 is_mobile_device = isinstance(largura_tela, (int, float)) and largura_tela > 0 and largura_tela <= 768
 
 # ---------------------------------------------------------
-# IDENTIDADE VISUAL (BRANCO, AZUL E AMARELO) & RESPONSIVIDADE
+# IDENTIDADE VISUAL MINIMALISTA (BRANCO, AZUL E AMARELO)
 # ---------------------------------------------------------
 st.markdown(
     """
@@ -46,39 +46,47 @@ st.markdown(
         :root {
             --azul-escuro: #0F3D75;
             --azul-principal: #1D5FA7;
-            --azul-claro-bg: #EEF4FB;
-            --amarelo-destaque: #F5B700;
-            --amarelo-suave: #FFF8DB;
+            --azul-claro: #EAF2FC;
+            --amarelo: #F5B700;
+            --amarelo-claro: #FFF8DB;
             --branco: #FFFFFF;
-            --borda-azul: #C8D9EE;
-            --texto-escuro: #162436;
+            --borda: #C8D9EE;
+            --texto: #132238;
         }
 
-        .stApp {
-            background-color: #F4F8FC;
-            color: var(--texto-escuro);
+        /* Fundo Branco/Gelo minimalista */
+        .stApp,
+        [data-testid="stHeader"],
+        [data-testid="stBottomBlockContainer"] {
+            background-color: #F7FAFE !important;
+            color: var(--texto) !important;
+        }
+
+        [data-testid="stHeader"] {
+            background-color: transparent !important;
         }
 
         .block-container {
-            padding-top: 1.0rem !important;
-            padding-bottom: 1.2rem !important;
+            padding-top: 0.9rem !important;
+            padding-bottom: 1.1rem !important;
             max-width: 98% !important;
         }
 
+        /* Sidebar em Branco e Azul */
         [data-testid="stSidebar"] {
-            background-color: var(--branco);
-            border-right: 2px solid var(--borda-azul);
+            background-color: var(--branco) !important;
+            border-right: 2px solid var(--borda) !important;
         }
 
-        /* Cabeçalho de marca Branco, Azul e Amarelo */
+        /* Cabeçalho minimalista Branco, Azul e Amarelo */
         .oficina-header {
-            background: linear-gradient(90deg, #0F3D75 0%, #1D5FA7 84%, #F5B700 100%);
+            background: linear-gradient(95deg, #0F3D75 0%, #1D5FA7 85%, #F5B700 100%);
             color: #FFFFFF;
-            padding: 12px 18px;
+            padding: 11px 18px;
             border-radius: 10px;
             border-bottom: 3px solid #F5B700;
             margin-bottom: 10px;
-            box-shadow: 0 2px 8px rgba(15, 61, 117, 0.12);
+            box-shadow: 0 2px 6px rgba(15, 61, 117, 0.10);
             display: flex;
             justify-content: space-between;
             align-items: center;
@@ -87,64 +95,132 @@ st.markdown(
         }
         .oficina-header h1 {
             margin: 0;
-            font-size: 1.32rem;
+            font-size: 1.28rem;
             color: #FFFFFF;
+            letter-spacing: -0.01em;
         }
         .oficina-header span {
-            font-size: 0.84rem;
+            font-size: 0.82rem;
             color: #FFF8DB;
             font-weight: 500;
         }
 
-        /* Botões padrão em Azul com detalhe Amarelo */
+        /* Caixas de texto, número e área de texto */
+        .stTextInput > div > div > input,
+        .stTextArea > div > div > textarea,
+        .stNumberInput > div > div > input {
+            background-color: #FFFFFF !important;
+            color: #132238 !important;
+            border: 1.5px solid #B8CFE8 !important;
+            border-radius: 8px !important;
+            font-size: 0.9rem !important;
+        }
+        .stTextInput > div > div > input:focus,
+        .stTextArea > div > div > textarea:focus,
+        .stNumberInput > div > div > input:focus {
+            border-color: #1D5FA7 !important;
+            box-shadow: 0 0 0 2px rgba(245, 183, 0, 0.28) !important;
+        }
+
+        /* Caixas de seleção (Selectbox / MultiSelect) */
+        div[data-baseweb="select"] > div {
+            background-color: #FFFFFF !important;
+            color: #132238 !important;
+            border: 1.5px solid #B8CFE8 !important;
+            border-radius: 8px !important;
+            min-height: 40px;
+        }
+        div[data-baseweb="select"] > div:hover {
+            border-color: #1D5FA7 !important;
+        }
+        ul[data-baseweb="menu"] {
+            background-color: #FFFFFF !important;
+            border: 1.5px solid #1D5FA7 !important;
+            border-radius: 8px !important;
+        }
+        ul[data-baseweb="menu"] li:hover {
+            background-color: #FFF8DB !important;
+            color: #0F3D75 !important;
+        }
+
+        /* File uploader minimalista */
+        [data-testid="stFileUploader"] section {
+            background-color: #FFFFFF !important;
+            border: 1.5px dashed #1D5FA7 !important;
+            border-radius: 9px !important;
+        }
+
+        /* Tabelas / Dataframes padronizadas */
+        [data-testid="stDataFrame"],
+        [data-testid="stTable"] {
+            background-color: #FFFFFF !important;
+            border: 1.5px solid #C8D9EE !important;
+            border-top: 3px solid #F5B700 !important;
+            border-radius: 9px !important;
+            overflow: hidden;
+        }
+
+        /* Expanders minimalistas */
+        [data-testid="stExpander"] {
+            background-color: #FFFFFF !important;
+            border: 1.5px solid #C8D9EE !important;
+            border-left: 4px solid #1D5FA7 !important;
+            border-radius: 8px !important;
+        }
+        [data-testid="stExpander"] summary {
+            color: #0F3D75 !important;
+            font-weight: 600 !important;
+        }
+
+        /* Botões padrão em Azul com detalhe Amarelo no hover */
         .stButton > button,
         .stFormSubmitButton > button,
         .stDownloadButton > button {
-            background-color: #1D5FA7;
-            color: #FFFFFF;
-            border: 1.5px solid #0F3D75;
-            border-radius: 9px;
-            font-weight: 600;
-            min-height: 40px;
-            padding: 0.42rem 0.8rem;
-            transition: all 0.16s ease;
+            background-color: #1D5FA7 !important;
+            color: #FFFFFF !important;
+            border: 1.5px solid #0F3D75 !important;
+            border-radius: 8px !important;
+            font-weight: 600 !important;
+            min-height: 38px;
+            padding: 0.38rem 0.78rem !important;
+            transition: all 0.15s ease;
         }
         .stButton > button:hover,
         .stFormSubmitButton > button:hover,
         .stDownloadButton > button:hover {
-            background-color: #0F3D75;
-            color: #FFD166;
-            border-color: #F5B700;
+            background-color: #0F3D75 !important;
+            color: #FFD166 !important;
+            border-color: #F5B700 !important;
         }
 
-        /* Painel superior de navegação (Desktop) */
+        /* Painel superior no Desktop */
         .painel-nav-desktop-label {
-            font-size: 0.82rem;
+            font-size: 0.8rem;
             font-weight: 700;
             color: #0F3D75;
             border-left: 4px solid #F5B700;
             padding-left: 8px;
-            margin-bottom: 6px;
+            margin-bottom: 4px;
         }
 
-        /* Hub inicial de ícones/botões */
+        /* Banner do Hub Inicial */
         .hub-banner {
             background-color: #FFFFFF;
             border: 1.5px solid #C8D9EE;
-            border-left: 6px solid #F5B700;
-            border-radius: 10px;
-            padding: 12px 16px;
-            margin-bottom: 12px;
+            border-left: 5px solid #F5B700;
+            border-radius: 9px;
+            padding: 10px 14px;
+            margin-bottom: 10px;
         }
         .hub-banner h3 {
-            margin: 0 0 2px 0;
+            margin: 0;
             color: #0F3D75;
-            font-size: 1.12rem;
+            font-size: 1.05rem;
         }
         .hub-banner p {
-            margin: 0;
+            margin: 2px 0 0 0;
             color: #3A4E66;
-            font-size: 0.88rem;
+            font-size: 0.84rem;
         }
 
         /* Abas com destaque Azul e Amarelo */
@@ -155,14 +231,14 @@ st.markdown(
             flex-wrap: wrap;
         }
         .stTabs [data-baseweb="tab"] {
-            background-color: #FFFFFF;
-            color: #0F3D75;
-            border: 1px solid #C8D9EE;
-            border-bottom: none;
-            border-radius: 7px 7px 0 0;
-            font-weight: 600;
-            font-size: 0.84rem;
-            padding: 6px 11px;
+            background-color: #FFFFFF !important;
+            color: #0F3D75 !important;
+            border: 1px solid #C8D9EE !important;
+            border-bottom: none !important;
+            border-radius: 7px 7px 0 0 !important;
+            font-weight: 600 !important;
+            font-size: 0.83rem !important;
+            padding: 6px 11px !important;
         }
         .stTabs [aria-selected="true"] {
             background-color: #0F3D75 !important;
@@ -170,23 +246,22 @@ st.markdown(
             border-bottom: 3px solid #F5B700 !important;
         }
 
-        /* Cards de métricas compactos */
+        /* Cards de métricas */
         [data-testid="stMetric"] {
-            background-color: #FFFFFF;
-            border: 1px solid #C8D9EE;
-            border-top: 3px solid #F5B700;
-            border-radius: 8px;
-            padding: 8px 12px;
-            box-shadow: 0 1px 4px rgba(15, 61, 117, 0.06);
+            background-color: #FFFFFF !important;
+            border: 1px solid #C8D9EE !important;
+            border-top: 3px solid #F5B700 !important;
+            border-radius: 8px !important;
+            padding: 8px 12px !important;
         }
         [data-testid="stMetricLabel"] {
             color: #0F3D75 !important;
-            font-weight: 700;
+            font-weight: 700 !important;
             font-size: 0.78rem !important;
         }
         [data-testid="stMetricValue"] {
-            color: #162436 !important;
-            font-size: 1.3rem !important;
+            color: #132238 !important;
+            font-size: 1.28rem !important;
         }
 
         .cockpit-box-title {
@@ -197,42 +272,74 @@ st.markdown(
             padding: 7px 12px;
             border-radius: 7px;
             font-weight: 700;
-            font-size: 0.95rem;
+            font-size: 0.94rem;
             margin-bottom: 8px;
         }
 
-        /* Regras específicas para telas Mobile (<= 768px) */
+        .login-mobile-only {
+            display: none;
+        }
+
+        /* ALTERAÇÕES EXCLUSIVAS PARA MOBILE (<= 768px) */
         @media (max-width: 768px) {
-            .block-container {
-                padding-top: 0.65rem !important;
-                padding-left: 0.7rem !important;
-                padding-right: 0.7rem !important;
-                padding-bottom: 2rem !important;
-                max-width: 100% !important;
-            }
-            .nav-desktop-only {
+            /* Oculta painel superior e barra lateral apenas no mobile */
+            .nav-desktop-only,
+            [data-testid="stSidebar"],
+            [data-testid="stSidebarNav"],
+            [data-testid="collapsedControl"] {
                 display: none !important;
             }
+
+            .login-mobile-only {
+                display: block !important;
+            }
+
+            .block-container {
+                padding-top: 0.55rem !important;
+                padding-left: 0.6rem !important;
+                padding-right: 0.6rem !important;
+                padding-bottom: 1.2rem !important;
+                max-width: 100% !important;
+            }
+
             .oficina-header {
-                padding: 10px 14px;
+                padding: 9px 12px;
                 border-radius: 8px;
+                margin-bottom: 8px;
             }
             .oficina-header h1 {
-                font-size: 1.12rem;
+                font-size: 1.05rem;
             }
             .oficina-header span {
-                font-size: 0.76rem;
+                display: none;
             }
+
+            .hub-banner {
+                padding: 8px 12px;
+                margin-bottom: 8px;
+            }
+            .hub-banner h3 {
+                font-size: 0.96rem;
+            }
+            .hub-banner p {
+                font-size: 0.78rem;
+            }
+
+            /* Botões compactos e táteis na grade mobile para evitar rolagem */
             .stButton > button,
             .stFormSubmitButton > button,
             .stDownloadButton > button {
-                min-height: 48px;
-                font-size: 0.96rem;
-                border-radius: 10px;
-                padding: 0.55rem 0.9rem;
+                min-height: 44px;
+                font-size: 0.86rem !important;
+                border-radius: 8px !important;
+                padding: 0.35rem 0.55rem !important;
+            }
+
+            [data-testid="stMetric"] {
+                padding: 6px 8px !important;
             }
             [data-testid="stMetricValue"] {
-                font-size: 1.12rem !important;
+                font-size: 1.05rem !important;
             }
         }
     </style>
@@ -244,7 +351,7 @@ st.markdown(
     """
     <div class="oficina-header">
         <h1>🔧 Oficina Conectada: Gestão Integrada (SQL)</h1>
-        <span>Branco • Azul • Amarelo | Gestão & Campo</span>
+        <span>Branco • Azul • Amarelo</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -288,7 +395,7 @@ def exibir_galeria_imagens(json_str, titulo="📷 Fotos Anexadas", cols_qtd=3):
         return
 
     st.markdown(f"**{titulo} ({len(itens)})**")
-    qtd_col = 1 if is_mobile_device else min(cols_qtd, len(itens))
+    qtd_col = 2 if is_mobile_device else min(cols_qtd, len(itens))
     for i in range(0, len(itens), qtd_col):
         row_cols = st.columns(qtd_col)
         for idx_c, item in enumerate(itens[i : i + qtd_col]):
@@ -900,37 +1007,50 @@ def renderizar_visao_historica_cliente(contexto_key="default", compacto=False):
 
 
 # ---------------------------------------------------------
-# SISTEMA DE LOGIN
+# SISTEMA DE LOGIN (SIDEBAR NO DESKTOP + PRINCIPAL NO MOBILE)
 # ---------------------------------------------------------
+def processar_login(usuario_txt, senha_txt):
+    df_usuarios = carregar_dados("usuarios")
+    match = df_usuarios[
+        (df_usuarios["Usuario"] == usuario_txt.strip())
+        & (df_usuarios["Senha"] == senha_txt.strip())
+    ]
+    if not match.empty:
+        st.session_state.usuario_logado = match.iloc[0]["Nome"]
+        st.session_state.perfil_logado = match.iloc[0]["Perfil"]
+        st.session_state.tela_mecanico = "Início"
+        st.session_state.tela_secretaria = "Início"
+        st.session_state.flash_sucesso = "Login efetuado com sucesso!"
+        registrar_log("LOGIN", f"Usuário '{usuario_txt.strip()}' ({match.iloc[0]['Nome']}) entrou no sistema.")
+        st.rerun()
+    else:
+        registrar_log("LOGIN_FALHA", f"Tentativa de login inválida com usuário '{usuario_txt.strip()}'.")
+        st.error("Usuário ou senha incorretos.")
+
+
 st.sidebar.markdown("### 🔐 Autenticação de Usuário")
 
 if st.session_state.usuario_logado is None:
     st.sidebar.subheader("Fazer Login no Sistema")
+    with st.sidebar.form("form_login_side"):
+        user_input_s = st.text_input("Usuário")
+        senha_input_s = st.text_input("Senha", type="password")
+        if st.form_submit_button("Entrar", use_container_width=True):
+            processar_login(user_input_s, senha_input_s)
 
-    with st.sidebar.form("form_login"):
-        user_input = st.text_input("Usuário")
-        senha_input = st.text_input("Senha", type="password")
-        btn_login = st.form_submit_button("Entrar", use_container_width=True)
+    # No mobile, como a sidebar fica oculta, exibe o login diretamente na tela principal
+    st.markdown('<div class="login-mobile-only">', unsafe_allow_html=True)
+    with st.container(border=True):
+        st.markdown("### 🔐 Entrar no Sistema")
+        with st.form("form_login_mobile"):
+            user_input_m = st.text_input("Usuário", key="mob_user")
+            senha_input_m = st.text_input("Senha", type="password", key="mob_pass")
+            if st.form_submit_button("Entrar", use_container_width=True):
+                processar_login(user_input_m, senha_input_m)
+    st.markdown("</div>", unsafe_allow_html=True)
 
-        if btn_login:
-            df_usuarios = carregar_dados("usuarios")
-            match = df_usuarios[
-                (df_usuarios["Usuario"] == user_input.strip())
-                & (df_usuarios["Senha"] == senha_input.strip())
-            ]
-            if not match.empty:
-                st.session_state.usuario_logado = match.iloc[0]["Nome"]
-                st.session_state.perfil_logado = match.iloc[0]["Perfil"]
-                st.session_state.tela_mecanico = "Início"
-                st.session_state.tela_secretaria = "Início"
-                st.session_state.flash_sucesso = "Login efetuado com sucesso!"
-                registrar_log("LOGIN", f"Usuário '{user_input.strip()}' ({match.iloc[0]['Nome']}) entrou no sistema.")
-                st.rerun()
-            else:
-                registrar_log("LOGIN_FALHA", f"Tentativa de login inválida com usuário '{user_input.strip()}'.")
-                st.error("Usuário ou senha incorretos.")
-
-    st.info("👈 Digite suas credenciais na barra lateral para acessar o sistema.")
+    if not is_mobile_device:
+        st.info("👈 Digite suas credenciais na barra lateral para acessar o sistema.")
     st.stop()
 else:
     st.sidebar.success(
@@ -950,13 +1070,12 @@ st.sidebar.markdown("---")
 
 
 # ---------------------------------------------------------
-# TELA INICIAL DE ÍCONES/BOTÕES (HUB PÓS-LOGIN)
+# GRADE INICIAL DE BOTÕES + NAVEGAÇÃO
 # ---------------------------------------------------------
-def renderizar_hub_inicial(modulos_config, chave_estado, titulo_hub, subtitulo_hub):
+def renderizar_grade_botoes_inicial(modulos_config, chave_estado, titulo_hub, subtitulo_hub):
     """
-    Exibe a tela inicial ao logar com ícones/botões grandes para cada tela.
-    Em telas mobile, organiza em 1 coluna larga (ou 2 colunas compactas);
-    no desktop, organiza em grade ampla.
+    Tela inicial com grade de botões/ícones para acesso rápido sem rolagem excessiva.
+    No mobile usa grade de 2 colunas compacta; no desktop usa 3 colunas.
     """
     st.markdown(
         f"""
@@ -968,38 +1087,46 @@ def renderizar_hub_inicial(modulos_config, chave_estado, titulo_hub, subtitulo_h
         unsafe_allow_html=True,
     )
 
-    colunas_por_linha = 1 if is_mobile_device else 3
+    colunas_por_linha = 2 if is_mobile_device else 3
     for i in range(0, len(modulos_config), colunas_por_linha):
         grupo = modulos_config[i : i + colunas_por_linha]
-        cols = st.columns(len(grupo), gap="medium")
+        cols = st.columns(len(grupo), gap="small" if is_mobile_device else "medium")
         for idx, mod in enumerate(grupo):
             with cols[idx]:
-                with st.container(border=True):
-                    st.markdown(f"### {mod['icone']} {mod['titulo']}")
+                rotulo_btn = f"{mod['icone']} {mod['titulo']}"
+                if st.button(
+                    rotulo_btn,
+                    key=f"grade_btn_{chave_estado}_{mod['destino']}",
+                    use_container_width=True,
+                ):
+                    st.session_state[chave_estado] = mod["destino"]
+                    st.rerun()
+                if not is_mobile_device:
                     st.caption(mod["descricao"])
-                    if st.button(
-                        f"Abrir {mod['titulo']}",
-                        key=f"hub_btn_{chave_estado}_{mod['destino']}",
-                        use_container_width=True,
-                    ):
-                        st.session_state[chave_estado] = mod["destino"]
-                        st.rerun()
 
 
 def renderizar_barra_navegacao_ativa(opcoes_telas, chave_estado, rotulos_curtos=None):
     """
-    Botão '🏠 Início' sempre disponível + painel superior no desktop / menu lateral.
+    - Desktop: botão Início + painel superior de botões.
+    - Mobile: painel superior oculto via CSS; botão '🏠 Grade Inicial' no topo para voltar.
     """
     tela_atual = st.session_state.get(chave_estado, "Início")
     rotulos_map = rotulos_curtos or {t: t for t in opcoes_telas}
 
-    # Botão voltar para a tela inicial de ícones/botões
-    c_home, c_nav = st.columns([1, 4.5]) if not is_mobile_device else (st.container(), st.container())
-    if c_home.button("🏠 Início (Ícones)", key=f"btn_home_{chave_estado}", use_container_width=True):
+    # No mobile, mostra apenas um botão compacto para voltar à grade inicial
+    st.markdown('<div class="login-mobile-only">', unsafe_allow_html=True)
+    if st.button("🏠 Voltar à Grade Inicial", key=f"mob_home_{chave_estado}", use_container_width=True):
         st.session_state[chave_estado] = "Início"
         st.rerun()
+    st.markdown("</div>", unsafe_allow_html=True)
 
+    # No desktop, exibe botão Início + painel superior de navegação
     st.markdown('<div class="nav-desktop-only">', unsafe_allow_html=True)
+    st.markdown('<div class="painel-nav-desktop-label">🧭 Painel Superior de Navegação</div>', unsafe_allow_html=True)
+    c_home, c_nav = st.columns([1, 5])
+    if c_home.button("🏠 Início", key=f"desk_home_{chave_estado}", use_container_width=True):
+        st.session_state[chave_estado] = "Início"
+        st.rerun()
     cols = c_nav.columns(len(opcoes_telas))
     for idx, nome_tela in enumerate(opcoes_telas):
         ativa = nome_tela == tela_atual
@@ -1009,9 +1136,9 @@ def renderizar_barra_navegacao_ativa(opcoes_telas, chave_estado, rotulos_curtos=
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # Sidebar sincronizada
+    # Sidebar sincronizada (visível apenas no desktop)
     st.sidebar.markdown("### 🧭 Telas do Módulo")
-    if st.sidebar.button("🏠 Início (Ícones)", key=f"side_home_{chave_estado}", use_container_width=True):
+    if st.sidebar.button("🏠 Início (Grade)", key=f"side_home_{chave_estado}", use_container_width=True):
         st.session_state[chave_estado] = "Início"
         st.rerun()
     for idx, nome_tela in enumerate(opcoes_telas):
@@ -1121,7 +1248,7 @@ def exibir_notificacoes_mecanico_fixas():
             ids_bc = ", ".join(em_bancada["ID_Maquina"].astype(str).tolist())
             partes.append(f"**{len(em_bancada)}** na bancada (Máq: {ids_bc})")
 
-        st.info("🔔 **Notificações da Oficina:** " + " • ".join(partes))
+        st.info("🔔 **Oficina:** " + " • ".join(partes))
 
 
 def renderizar_ficha_completa_maquina(maq_info):
@@ -1139,7 +1266,7 @@ def renderizar_ficha_completa_maquina(maq_info):
 
     st.markdown(
         f"""
-        <div style="border: 2px solid #1D5FA7; border-left: 6px solid #F5B700; padding: 14px; border-radius: 10px; background-color: #FFFFFF; color: #162436; font-size: 0.9rem;">
+        <div style="border: 2px solid #1D5FA7; border-left: 6px solid #F5B700; padding: 14px; border-radius: 10px; background-color: #FFFFFF; color: #132238; font-size: 0.9rem;">
             <h4 style="margin-top: 0; margin-bottom: 6px; color: #0F3D75;">📄 Ficha Técnica (ID: {maq_info['ID']}) — {maq_info['Modelo']}</h4>
             <p style="margin: 3px 0;"><b>👤 Cliente:</b> {maq_info['Cliente_Nome']} ({maq_info.get('ID_Cliente', 'N/A')} | Tel: {maq_info['Telefone']}) • <b>Passagens:</b> {len(df_p)}</p>
             <p style="margin: 3px 0;"><b>📌 Status Atual:</b> <span style="color: #0F3D75; background-color: #FFF8DB; padding: 1px 7px; border-radius: 5px; border: 1px solid #F5B700; font-weight: bold;">{status_atual}</span> • <b>Orçamento:</b> {fmt_valor(valor_atual)}</p>
@@ -1256,7 +1383,7 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Passag
 
 
 # ---------------------------------------------------------
-# VISÃO 1: MECÂNICO (Tela Inicial de Ícones + Telas)
+# VISÃO 1: MECÂNICO (Grade Inicial + Telas)
 # ---------------------------------------------------------
 if st.session_state.perfil_logado == "Mecânico (Oficina)":
     exibir_notificacoes_mecanico_fixas()
@@ -1270,12 +1397,12 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
         "Histórico por Cliente",
     ]
     rotulos_mecanico_curtos = {
-        "Entrada / Passagens": "➕ Entrada / Passagens",
-        "Máquinas e Passagens": "🔍 Buscar Máquinas",
-        "Laudo Técnico": "🛠️ Laudo Técnico",
+        "Entrada / Passagens": "➕ Entrada",
+        "Máquinas e Passagens": "🔍 Máquinas",
+        "Laudo Técnico": "🛠️ Laudo",
         "Execução": "⚙️ Execução",
-        "Etiqueta QR Code": "🖨️ Etiqueta QR",
-        "Histórico por Cliente": "👤 Por Cliente",
+        "Etiqueta QR Code": "🖨️ QR Code",
+        "Histórico por Cliente": "👤 Clientes",
     }
 
     modulos_mec_hub = [
@@ -1291,12 +1418,20 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
     if tela_ativa == "Início":
         renderizar_barra_navegacao_ativa(telas_mecanico, "tela_mecanico", rotulos_mecanico_curtos)
-        renderizar_hub_inicial(
+        renderizar_grade_botoes_inicial(
             modulos_mec_hub,
             "tela_mecanico",
-            f"🔧 Olá, {st.session_state.usuario_logado} — Escolha uma tela",
-            "Toque no botão correspondente para acessar a função desejada.",
+            f"🔧 {st.session_state.usuario_logado} — Módulos da Oficina",
+            "Toque em um botão para abrir a tela correspondente.",
         )
+        # No mobile, permite sair diretamente da tela inicial sem depender da sidebar oculta
+        st.markdown('<div class="login-mobile-only" style="margin-top: 10px;">', unsafe_allow_html=True)
+        if st.button("🚪 Sair da Conta", key="mob_logout_mec", use_container_width=True):
+            st.session_state.usuario_logado = None
+            st.session_state.perfil_logado = None
+            st.session_state.tela_mecanico = "Início"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
         renderizar_barra_navegacao_ativa(telas_mecanico, "tela_mecanico", rotulos_mecanico_curtos)
 
@@ -1660,12 +1795,8 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
                                 else "Aguardando Precificação (Secretaria)"
                             )
 
-                            # Mantém fotos anteriores se não anexou novas
                             fotos_existentes = row_sel.get("Fotos_Laudo") or "[]"
-                            if fotos_laudo_up:
-                                fotos_final_json = serializar_imagens(fotos_laudo_up)
-                            else:
-                                fotos_final_json = fotos_existentes
+                            fotos_final_json = serializar_imagens(fotos_laudo_up) if fotos_laudo_up else fotos_existentes
 
                             atualizar_passagem(id_pass, {
                                 "Descricao_Laudo": laudo.strip(),
@@ -1767,7 +1898,7 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
 
 
 # ---------------------------------------------------------
-# VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (Tela Inicial de Ícones + Cockpit/Telas)
+# VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (Grade Inicial + Cockpit/Telas)
 # ---------------------------------------------------------
 elif st.session_state.perfil_logado == "Secretaria (Administração)":
     telas_sec = [
@@ -1779,8 +1910,8 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         "Logs",
     ]
     rotulos_sec_curtos = {
-        "Cockpit": "⚡ Orçamentos / Cockpit",
-        "Máquinas e Passagens": "🔍 Buscar Máquinas",
+        "Cockpit": "⚡ Cockpit",
+        "Máquinas e Passagens": "🔍 Máquinas",
         "Histórico por Cliente": "👤 Clientes",
         "Estoque": "📦 Estoque",
         "Mecânicos": "👥 Mecânicos",
@@ -1800,12 +1931,19 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
 
     if tela_sec_ativa == "Início":
         renderizar_barra_navegacao_ativa(telas_sec, "tela_secretaria", rotulos_sec_curtos)
-        renderizar_hub_inicial(
+        renderizar_grade_botoes_inicial(
             modulos_sec_hub,
             "tela_secretaria",
-            "💻 Painel Inicial — Secretaria / Administração",
-            "Selecione o módulo que deseja abrir com um toque.",
+            "💻 Administração / Secretaria — Painel Inicial",
+            "Toque em um botão para abrir a tela correspondente.",
         )
+        st.markdown('<div class="login-mobile-only" style="margin-top: 10px;">', unsafe_allow_html=True)
+        if st.button("🚪 Sair da Conta", key="mob_logout_sec", use_container_width=True):
+            st.session_state.usuario_logado = None
+            st.session_state.perfil_logado = None
+            st.session_state.tela_secretaria = "Início"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
     else:
         renderizar_barra_navegacao_ativa(telas_sec, "tela_secretaria", rotulos_sec_curtos)
 
@@ -2181,7 +2319,6 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
                     use_container_width=True,
                 )
 
-        # KPIs no topo
         total_precificar = int(
             df_pass_ativas["Status"].isin([
                 "Aguardando Precificação (Secretaria)",
@@ -2226,7 +2363,6 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
             k4.metric("🚨 Estoque Crítico", total_est_critico)
             k5.metric("💰 Volume Orçado", fmt_valor(receita_ativa))
 
-        # Se abriu uma tela específica (ex.: no mobile), renderiza ela diretamente
         if tela_sec_ativa == "Máquinas e Passagens":
             renderizar_tabela_com_busca("🔍 Buscar Máquinas e Passagens", compacto=is_mobile_device)
         elif tela_sec_ativa == "Histórico por Cliente":
@@ -2238,7 +2374,6 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         elif tela_sec_ativa == "Logs":
             renderizar_bloco_logs()
         else:
-            # Tela Cockpit (visão combinada para desktop ou foco na fila no mobile)
             if is_mobile_device:
                 renderizar_fila_acao_rapida()
             else:
