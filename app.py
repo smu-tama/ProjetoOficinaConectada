@@ -1,13 +1,14 @@
+import base64
 import datetime
-import random
-import re
 import io
 import json
+import random
+import re
 import sqlite3
-import qrcode
 import cv2
 import numpy as np
 import pandas as pd
+import qrcode
 import streamlit as st
 from streamlit_back_camera_input import back_camera_input
 
@@ -59,7 +60,7 @@ st.markdown(
         }
 
         .block-container {
-            padding-top: 1.05rem !important;
+            padding-top: 1.0rem !important;
             padding-bottom: 1.2rem !important;
             max-width: 98% !important;
         }
@@ -102,10 +103,10 @@ st.markdown(
             background-color: #1D5FA7;
             color: #FFFFFF;
             border: 1.5px solid #0F3D75;
-            border-radius: 8px;
+            border-radius: 9px;
             font-weight: 600;
-            min-height: 38px;
-            padding: 0.38rem 0.75rem;
+            min-height: 40px;
+            padding: 0.42rem 0.8rem;
             transition: all 0.16s ease;
         }
         .stButton > button:hover,
@@ -124,6 +125,26 @@ st.markdown(
             border-left: 4px solid #F5B700;
             padding-left: 8px;
             margin-bottom: 6px;
+        }
+
+        /* Hub inicial de ícones/botões */
+        .hub-banner {
+            background-color: #FFFFFF;
+            border: 1.5px solid #C8D9EE;
+            border-left: 6px solid #F5B700;
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 12px;
+        }
+        .hub-banner h3 {
+            margin: 0 0 2px 0;
+            color: #0F3D75;
+            font-size: 1.12rem;
+        }
+        .hub-banner p {
+            margin: 0;
+            color: #3A4E66;
+            font-size: 0.88rem;
         }
 
         /* Abas com destaque Azul e Amarelo */
@@ -180,32 +201,17 @@ st.markdown(
             margin-bottom: 8px;
         }
 
-        .mobile-atalhos-banner {
-            display: none;
-        }
-
         /* Regras específicas para telas Mobile (<= 768px) */
         @media (max-width: 768px) {
             .block-container {
                 padding-top: 0.65rem !important;
-                padding-left: 0.65rem !important;
-                padding-right: 0.65rem !important;
+                padding-left: 0.7rem !important;
+                padding-right: 0.7rem !important;
                 padding-bottom: 2rem !important;
                 max-width: 100% !important;
             }
             .nav-desktop-only {
                 display: none !important;
-            }
-            .mobile-atalhos-banner {
-                display: block !important;
-                background-color: #FFF8DB;
-                border: 1.5px solid #F5B700;
-                color: #0F3D75;
-                padding: 8px 12px;
-                border-radius: 8px;
-                font-size: 0.84rem;
-                font-weight: 700;
-                margin-bottom: 8px;
             }
             .oficina-header {
                 padding: 10px 14px;
@@ -220,9 +226,10 @@ st.markdown(
             .stButton > button,
             .stFormSubmitButton > button,
             .stDownloadButton > button {
-                min-height: 44px;
-                font-size: 0.92rem;
-                border-radius: 9px;
+                min-height: 48px;
+                font-size: 0.96rem;
+                border-radius: 10px;
+                padding: 0.55rem 0.9rem;
             }
             [data-testid="stMetricValue"] {
                 font-size: 1.12rem !important;
@@ -237,7 +244,7 @@ st.markdown(
     """
     <div class="oficina-header">
         <h1>🔧 Oficina Conectada: Gestão Integrada (SQL)</h1>
-        <span>Branco • Azul • Amarelo | Responsivo</span>
+        <span>Branco • Azul • Amarelo | Gestão & Campo</span>
     </div>
     """,
     unsafe_allow_html=True,
@@ -246,6 +253,54 @@ st.markdown(
 
 def agora_str():
     return datetime.datetime.now().strftime("%d/%m/%Y %H:%M")
+
+
+# ---------------------------------------------------------
+# FUNÇÕES DE IMAGEM (SERIALIZAÇÃO / EXIBIÇÃO)
+# ---------------------------------------------------------
+def serializar_imagens(uploaded_files):
+    if not uploaded_files:
+        return "[]"
+    itens = []
+    for arq in uploaded_files:
+        try:
+            raw = arq.getvalue()
+            mime = arq.type or "image/jpeg"
+            b64 = base64.b64encode(raw).decode("utf-8")
+            itens.append({
+                "nome": arq.name,
+                "mime": mime,
+                "b64": b64,
+            })
+        except Exception:
+            continue
+    return json.dumps(itens)
+
+
+def exibir_galeria_imagens(json_str, titulo="📷 Fotos Anexadas", cols_qtd=3):
+    if not json_str or str(json_str).strip() in ("", "[]", "None", "nan"):
+        return
+    try:
+        itens = json.loads(json_str)
+    except Exception:
+        return
+    if not isinstance(itens, list) or len(itens) == 0:
+        return
+
+    st.markdown(f"**{titulo} ({len(itens)})**")
+    qtd_col = 1 if is_mobile_device else min(cols_qtd, len(itens))
+    for i in range(0, len(itens), qtd_col):
+        row_cols = st.columns(qtd_col)
+        for idx_c, item in enumerate(itens[i : i + qtd_col]):
+            try:
+                img_bytes = base64.b64decode(item["b64"])
+                row_cols[idx_c].image(
+                    img_bytes,
+                    caption=item.get("nome", f"Imagem {i + idx_c + 1}"),
+                    use_container_width=True,
+                )
+            except Exception:
+                row_cols[idx_c].caption(f"Erro ao carregar: {item.get('nome', 'imagem')}")
 
 
 # ---------------------------------------------------------
@@ -266,6 +321,7 @@ def garantir_colunas_passagens(cursor):
         "Data_Hora_Conclusao_Servico": "TEXT",
         "Data_Hora_Notificacao_Conclusao": "TEXT",
         "Data_Hora_Saida": "TEXT",
+        "Fotos_Laudo": "TEXT",
     }
     cursor.execute("PRAGMA table_info(passagens_oficina)")
     existentes = {row[1] for row in cursor.fetchall()}
@@ -314,7 +370,8 @@ def inicializar_banco():
             Telefone TEXT,
             Modelo TEXT,
             Data_Hora_Cadastro TEXT,
-            Obs_Cadastro TEXT
+            Obs_Cadastro TEXT,
+            Fotos_Cadastro TEXT
         )
     """)
 
@@ -337,6 +394,7 @@ def inicializar_banco():
             Valor_Orcamento REAL,
             Mecanico_Laudo TEXT,
             Mecanico_Execucao TEXT,
+            Fotos_Laudo TEXT,
             FOREIGN KEY (ID_Maquina) REFERENCES maquinas(ID)
         )
     """)
@@ -365,8 +423,8 @@ def inicializar_banco():
                         Data_Hora_Resposta_Cliente, Data_Hora_Inicio_Servico,
                         Data_Hora_Conclusao_Servico, Data_Hora_Notificacao_Conclusao,
                         Data_Hora_Saida, Status, Descricao_Laudo, Anomalias,
-                        Pecas_Solicitadas, Valor_Orcamento, Mecanico_Laudo, Mecanico_Execucao
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        Pecas_Solicitadas, Valor_Orcamento, Mecanico_Laudo, Mecanico_Execucao, Fotos_Laudo
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '[]')
                 """, row)
 
         cursor.execute("ALTER TABLE maquinas RENAME TO maquinas_legado")
@@ -379,13 +437,14 @@ def inicializar_banco():
                 Telefone TEXT,
                 Modelo TEXT,
                 Data_Hora_Cadastro TEXT,
-                Obs_Cadastro TEXT
+                Obs_Cadastro TEXT,
+                Fotos_Cadastro TEXT
             )
         """)
         cursor.execute("""
-            INSERT INTO maquinas (ID, QR_Code, ID_Cliente, Cliente_Nome, Telefone, Modelo, Data_Hora_Cadastro, Obs_Cadastro)
+            INSERT INTO maquinas (ID, QR_Code, ID_Cliente, Cliente_Nome, Telefone, Modelo, Data_Hora_Cadastro, Obs_Cadastro, Fotos_Cadastro)
             SELECT ID, QR_Code, ID_Cliente, Cliente_Nome, Telefone, Modelo,
-                   COALESCE(Data_Hora_Entrada, ''), COALESCE(Obs_Cadastro, '')
+                   COALESCE(Data_Hora_Entrada, ''), COALESCE(Obs_Cadastro, ''), '[]'
             FROM maquinas_legado
         """)
         cursor.execute("DROP TABLE maquinas_legado")
@@ -394,6 +453,8 @@ def inicializar_banco():
     cols_maq_atual = {row[1] for row in cursor.fetchall()}
     if "Data_Hora_Cadastro" not in cols_maq_atual:
         cursor.execute("ALTER TABLE maquinas ADD COLUMN Data_Hora_Cadastro TEXT")
+    if "Fotos_Cadastro" not in cols_maq_atual:
+        cursor.execute("ALTER TABLE maquinas ADD COLUMN Fotos_Cadastro TEXT DEFAULT '[]'")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS logs (
@@ -456,9 +517,9 @@ if "perfil_logado" not in st.session_state:
 if "flash_sucesso" not in st.session_state:
     st.session_state.flash_sucesso = None
 if "tela_mecanico" not in st.session_state:
-    st.session_state.tela_mecanico = "Entrada / Passagens"
-if "tela_secretaria_mobile" not in st.session_state:
-    st.session_state.tela_secretaria_mobile = "Cockpit"
+    st.session_state.tela_mecanico = "Início"
+if "tela_secretaria" not in st.session_state:
+    st.session_state.tela_secretaria = "Início"
 
 if st.session_state.flash_sucesso:
     st.success(st.session_state.flash_sucesso)
@@ -493,8 +554,8 @@ def criar_passagem(id_maquina, data_entrada=None, status="Aguardando Avaliação
             Data_Hora_Resposta_Cliente, Data_Hora_Inicio_Servico,
             Data_Hora_Conclusao_Servico, Data_Hora_Notificacao_Conclusao,
             Data_Hora_Saida, Status, Descricao_Laudo, Anomalias,
-            Pecas_Solicitadas, Valor_Orcamento, Mecanico_Laudo, Mecanico_Execucao
-        ) VALUES (?, ?, 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', ?, 'Pendente', 'Nenhuma', '[]', 0.0, 'Pendente', 'Pendente')
+            Pecas_Solicitadas, Valor_Orcamento, Mecanico_Laudo, Mecanico_Execucao, Fotos_Laudo
+        ) VALUES (?, ?, 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', 'Pendente', ?, 'Pendente', 'Nenhuma', '[]', 0.0, 'Pendente', 'Pendente', '[]')
     """, (id_maquina, entrada, status))
     nova_id = cursor.lastrowid
     conn.commit()
@@ -624,6 +685,7 @@ def exibir_banco_passagens_maquina(id_maquina, titulo_secao="🗂️ Histórico 
         f"Mec. Laudo: {fmt_data(p.get('Mecanico_Laudo'), 'Pendente')} | Mec. Exec.: {fmt_data(p.get('Mecanico_Execucao'), 'Pendente')}"
     )
     st.markdown(renderizar_cronologia_texto(p))
+    exibir_galeria_imagens(p.get("Fotos_Laudo"), "🛠️ Fotos Anexadas no Laudo", cols_qtd=3)
     if p.get("Pecas_Solicitadas"):
         try:
             p_list = json.loads(p["Pecas_Solicitadas"])
@@ -645,6 +707,7 @@ def carregar_visao_consolidada_passagens():
             m.Modelo,
             m.Obs_Cadastro,
             m.Data_Hora_Cadastro,
+            COALESCE(m.Fotos_Cadastro, '[]') AS Fotos_Cadastro,
             p.ID_Passagem,
             COALESCE(p.Status, 'Sem Passagem Aberta') AS Status,
             COALESCE(p.Valor_Orcamento, 0.0) AS Valor_Orcamento,
@@ -660,7 +723,8 @@ def carregar_visao_consolidada_passagens():
             COALESCE(p.Anomalias, 'Nenhuma') AS Anomalias,
             COALESCE(p.Pecas_Solicitadas, '[]') AS Pecas_Solicitadas,
             COALESCE(p.Mecanico_Laudo, 'Pendente') AS Mecanico_Laudo,
-            COALESCE(p.Mecanico_Execucao, 'Pendente') AS Mecanico_Execucao
+            COALESCE(p.Mecanico_Execucao, 'Pendente') AS Mecanico_Execucao,
+            COALESCE(p.Fotos_Laudo, '[]') AS Fotos_Laudo
         FROM maquinas m
         LEFT JOIN passagens_oficina p
             ON p.ID_Passagem = (
@@ -684,6 +748,7 @@ def carregar_historico_cliente(id_cliente):
             m.Modelo,
             m.Data_Hora_Cadastro,
             m.Obs_Cadastro,
+            COALESCE(m.Fotos_Cadastro, '[]') AS Fotos_Cadastro,
             COUNT(p.ID_Passagem) AS Total_Passagens,
             COALESCE((
                 SELECT p_ult.Status
@@ -695,7 +760,7 @@ def carregar_historico_cliente(id_cliente):
         FROM maquinas m
         LEFT JOIN passagens_oficina p ON p.ID_Maquina = m.ID
         WHERE m.ID_Cliente = ?
-        GROUP BY m.ID, m.QR_Code, m.Modelo, m.Data_Hora_Cadastro, m.Obs_Cadastro
+        GROUP BY m.ID, m.QR_Code, m.Modelo, m.Data_Hora_Cadastro, m.Obs_Cadastro, m.Fotos_Cadastro
         ORDER BY m.ID ASC
     """, conn, params=(str(id_cliente),))
 
@@ -831,6 +896,7 @@ def renderizar_visao_historica_cliente(contexto_key="default", compacto=False):
         f"**Mecânicos:** {fmt_data(p.get('Mecanico_Laudo'), 'Pendente')} / {fmt_data(p.get('Mecanico_Execucao'), 'Pendente')}"
     )
     st.markdown(renderizar_cronologia_texto(p))
+    exibir_galeria_imagens(p.get("Fotos_Laudo"), "🛠️ Fotos do Laudo", cols_qtd=3)
 
 
 # ---------------------------------------------------------
@@ -844,7 +910,7 @@ if st.session_state.usuario_logado is None:
     with st.sidebar.form("form_login"):
         user_input = st.text_input("Usuário")
         senha_input = st.text_input("Senha", type="password")
-        btn_login = st.form_submit_button("Entrar")
+        btn_login = st.form_submit_button("Entrar", use_container_width=True)
 
         if btn_login:
             df_usuarios = carregar_dados("usuarios")
@@ -855,6 +921,8 @@ if st.session_state.usuario_logado is None:
             if not match.empty:
                 st.session_state.usuario_logado = match.iloc[0]["Nome"]
                 st.session_state.perfil_logado = match.iloc[0]["Perfil"]
+                st.session_state.tela_mecanico = "Início"
+                st.session_state.tela_secretaria = "Início"
                 st.session_state.flash_sucesso = "Login efetuado com sucesso!"
                 registrar_log("LOGIN", f"Usuário '{user_input.strip()}' ({match.iloc[0]['Nome']}) entrou no sistema.")
                 st.rerun()
@@ -862,17 +930,19 @@ if st.session_state.usuario_logado is None:
                 registrar_log("LOGIN_FALHA", f"Tentativa de login inválida com usuário '{user_input.strip()}'.")
                 st.error("Usuário ou senha incorretos.")
 
-    st.info("👈 Digite suas credenciais para acessar o sistema.")
+    st.info("👈 Digite suas credenciais na barra lateral para acessar o sistema.")
     st.stop()
 else:
     st.sidebar.success(
         f"Conectado: **{st.session_state.usuario_logado}**\n\nPerfil: *{st.session_state.perfil_logado}*"
     )
 
-    if st.sidebar.button("Sair (Logout)"):
+    if st.sidebar.button("Sair (Logout)", use_container_width=True):
         nome_saindo = st.session_state.usuario_logado
         st.session_state.usuario_logado = None
         st.session_state.perfil_logado = None
+        st.session_state.tela_mecanico = "Início"
+        st.session_state.tela_secretaria = "Início"
         registrar_log("LOGOUT", f"Usuário '{nome_saindo}' encerrou a sessão.")
         st.rerun()
 
@@ -880,58 +950,77 @@ st.sidebar.markdown("---")
 
 
 # ---------------------------------------------------------
-# NAVEGAÇÃO ADAPTATIVA (DESKTOP + ATALHOS DIRETOS NO MOBILE)
+# TELA INICIAL DE ÍCONES/BOTÕES (HUB PÓS-LOGIN)
 # ---------------------------------------------------------
-def navegar_telas(opcoes_telas, chave_estado, rotulos_curtos=None):
+def renderizar_hub_inicial(modulos_config, chave_estado, titulo_hub, subtitulo_hub):
     """
-    - Desktop: painel superior de navegação em botões.
-    - Mobile: grade de botões diretos para cada tela + barra lateral sincronizada.
+    Exibe a tela inicial ao logar com ícones/botões grandes para cada tela.
+    Em telas mobile, organiza em 1 coluna larga (ou 2 colunas compactas);
+    no desktop, organiza em grade ampla.
     """
-    tela_atual = st.session_state.get(chave_estado, opcoes_telas[0])
-    if tela_atual not in opcoes_telas:
-        tela_atual = opcoes_telas[0]
-        st.session_state[chave_estado] = tela_atual
+    st.markdown(
+        f"""
+        <div class="hub-banner">
+            <h3>{titulo_hub}</h3>
+            <p>{subtitulo_hub}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    colunas_por_linha = 1 if is_mobile_device else 3
+    for i in range(0, len(modulos_config), colunas_por_linha):
+        grupo = modulos_config[i : i + colunas_por_linha]
+        cols = st.columns(len(grupo), gap="medium")
+        for idx, mod in enumerate(grupo):
+            with cols[idx]:
+                with st.container(border=True):
+                    st.markdown(f"### {mod['icone']} {mod['titulo']}")
+                    st.caption(mod["descricao"])
+                    if st.button(
+                        f"Abrir {mod['titulo']}",
+                        key=f"hub_btn_{chave_estado}_{mod['destino']}",
+                        use_container_width=True,
+                    ):
+                        st.session_state[chave_estado] = mod["destino"]
+                        st.rerun()
+
+
+def renderizar_barra_navegacao_ativa(opcoes_telas, chave_estado, rotulos_curtos=None):
+    """
+    Botão '🏠 Início' sempre disponível + painel superior no desktop / menu lateral.
+    """
+    tela_atual = st.session_state.get(chave_estado, "Início")
     rotulos_map = rotulos_curtos or {t: t for t in opcoes_telas}
 
-    # 1) Painel Superior no Desktop
+    # Botão voltar para a tela inicial de ícones/botões
+    c_home, c_nav = st.columns([1, 4.5]) if not is_mobile_device else (st.container(), st.container())
+    if c_home.button("🏠 Início (Ícones)", key=f"btn_home_{chave_estado}", use_container_width=True):
+        st.session_state[chave_estado] = "Início"
+        st.rerun()
+
     st.markdown('<div class="nav-desktop-only">', unsafe_allow_html=True)
-    st.markdown('<div class="painel-nav-desktop-label">🧭 Painel Superior de Navegação</div>', unsafe_allow_html=True)
-    cols = st.columns(len(opcoes_telas))
+    cols = c_nav.columns(len(opcoes_telas))
     for idx, nome_tela in enumerate(opcoes_telas):
         ativa = nome_tela == tela_atual
-        rotulo = f"🟡 {nome_tela}" if ativa else nome_tela
+        rotulo = f"🟡 {rotulos_map.get(nome_tela, nome_tela)}" if ativa else rotulos_map.get(nome_tela, nome_tela)
         if cols[idx].button(rotulo, key=f"top_nav_{chave_estado}_{idx}", use_container_width=True):
             st.session_state[chave_estado] = nome_tela
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # 2) Atalhos Diretos para Telas no Mobile (grade 2 colunas, toque rápido)
-    st.markdown('<div class="mobile-atalhos-banner">', unsafe_allow_html=True)
-    st.markdown(f"📱 **Atalhos Rápidos Mobile** • Tela atual: **{rotulos_map.get(tela_atual, tela_atual)}**", unsafe_allow_html=True)
-    for row_start in range(0, len(opcoes_telas), 2):
-        par = opcoes_telas[row_start : row_start + 2]
-        m_cols = st.columns(len(par))
-        for j, nome_tela in enumerate(par):
-            ativa = nome_tela == tela_atual
-            curto = rotulos_map.get(nome_tela, nome_tela)
-            rot_mob = f"🟡 {curto}" if ativa else curto
-            if m_cols[j].button(rot_mob, key=f"mob_nav_{chave_estado}_{row_start + j}", use_container_width=True):
-                st.session_state[chave_estado] = nome_tela
-                st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # 3) Barra Lateral (também disponível no mobile)
-    st.sidebar.markdown("### 🧭 Navegação entre Telas")
+    # Sidebar sincronizada
+    st.sidebar.markdown("### 🧭 Telas do Módulo")
+    if st.sidebar.button("🏠 Início (Ícones)", key=f"side_home_{chave_estado}", use_container_width=True):
+        st.session_state[chave_estado] = "Início"
+        st.rerun()
     for idx, nome_tela in enumerate(opcoes_telas):
         ativa = nome_tela == tela_atual
-        rotulo_side = f"🟡 {nome_tela}" if ativa else nome_tela
+        rotulo_side = f"🟡 {rotulos_map.get(nome_tela, nome_tela)}" if ativa else rotulos_map.get(nome_tela, nome_tela)
         if st.sidebar.button(rotulo_side, key=f"side_nav_{chave_estado}_{idx}", use_container_width=True):
             st.session_state[chave_estado] = nome_tela
             st.rerun()
-
     st.sidebar.markdown("---")
-    return st.session_state[chave_estado]
 
 
 # ---------------------------------------------------------
@@ -1062,6 +1151,7 @@ def renderizar_ficha_completa_maquina(maq_info):
         unsafe_allow_html=True,
     )
 
+    exibir_galeria_imagens(maq_info.get("Fotos_Cadastro"), "📸 Fotos na Chegada / Cadastro", cols_qtd=3)
     exibir_banco_passagens_maquina(id_maq)
 
 
@@ -1166,11 +1256,9 @@ def renderizar_tabela_com_busca(titulo="📊 Visão Geral das Máquinas e Passag
 
 
 # ---------------------------------------------------------
-# VISÃO 1: MECÂNICO (Dispositivo Móvel & Desktop)
+# VISÃO 1: MECÂNICO (Tela Inicial de Ícones + Telas)
 # ---------------------------------------------------------
 if st.session_state.perfil_logado == "Mecânico (Oficina)":
-    st.subheader(f"📱 Módulo da Oficina — Mecânico: {st.session_state.usuario_logado}")
-
     exibir_notificacoes_mecanico_fixas()
 
     telas_mecanico = [
@@ -1181,447 +1269,508 @@ if st.session_state.perfil_logado == "Mecânico (Oficina)":
         "Etiqueta QR Code",
         "Histórico por Cliente",
     ]
-    rotulos_mecanico_mob = {
-        "Entrada / Passagens": "➕ Cadastrar / Passagem",
+    rotulos_mecanico_curtos = {
+        "Entrada / Passagens": "➕ Entrada / Passagens",
         "Máquinas e Passagens": "🔍 Buscar Máquinas",
         "Laudo Técnico": "🛠️ Laudo Técnico",
         "Execução": "⚙️ Execução",
         "Etiqueta QR Code": "🖨️ Etiqueta QR",
         "Histórico por Cliente": "👤 Por Cliente",
     }
-    tela_ativa = navegar_telas(telas_mecanico, "tela_mecanico", rotulos_curtos=rotulos_mecanico_mob)
 
-    if tela_ativa == "Entrada / Passagens":
-        st.subheader("📝 Registrar Máquina e Passagens na Oficina")
+    modulos_mec_hub = [
+        {"icone": "➕", "titulo": "Entrada / Passagens", "destino": "Entrada / Passagens", "descricao": "Cadastrar máquina, abrir passagem e anexar fotos da chegada."},
+        {"icone": "🔍", "titulo": "Buscar Máquinas", "destino": "Máquinas e Passagens", "descricao": "Pesquisar equipamentos, ler QR Code e ver fichas."},
+        {"icone": "🛠️", "titulo": "Laudo Técnico", "destino": "Laudo Técnico", "descricao": "Registrar diagnóstico, peças, fotos do laudo e enviar."},
+        {"icone": "⚙️", "titulo": "Execução", "destino": "Execução", "descricao": "Iniciar ou concluir manutenções aprovadas na bancada."},
+        {"icone": "🖨️", "titulo": "Etiqueta QR Code", "destino": "Etiqueta QR Code", "descricao": "Gerar e imprimir etiqueta com QR Code da máquina."},
+        {"icone": "👤", "titulo": "Histórico por Cliente", "destino": "Histórico por Cliente", "descricao": "Consultar máquinas e passagens vinculadas ao cliente."},
+    ]
 
-        df_cli = carregar_dados("clientes")
-        opcoes_clientes = (
-            ["-- Selecionar Cliente Existente --"]
-            + list(df_cli["Nome"] + " (" + df_cli["Telefone"] + ")")
-            + ["+ Cadastrar Novo Cliente"]
+    tela_ativa = st.session_state.tela_mecanico
+
+    if tela_ativa == "Início":
+        renderizar_barra_navegacao_ativa(telas_mecanico, "tela_mecanico", rotulos_mecanico_curtos)
+        renderizar_hub_inicial(
+            modulos_mec_hub,
+            "tela_mecanico",
+            f"🔧 Olá, {st.session_state.usuario_logado} — Escolha uma tela",
+            "Toque no botão correspondente para acessar a função desejada.",
         )
+    else:
+        renderizar_barra_navegacao_ativa(telas_mecanico, "tela_mecanico", rotulos_mecanico_curtos)
 
-        cliente_sel = st.selectbox("Proprietário da Máquina:", opcoes_clientes)
+        if tela_ativa == "Entrada / Passagens":
+            st.subheader("📝 Registrar Máquina e Passagens na Oficina")
 
-        id_cli_final = None
-        nome_cli_final = ""
-        tel_cli_final = ""
+            df_cli = carregar_dados("clientes")
+            opcoes_clientes = (
+                ["-- Selecionar Cliente Existente --"]
+                + list(df_cli["Nome"] + " (" + df_cli["Telefone"] + ")")
+                + ["+ Cadastrar Novo Cliente"]
+            )
 
-        if cliente_sel == "+ Cadastrar Novo Cliente":
-            with st.form("form_novo_cliente", clear_on_submit=True):
-                novo_nome = st.text_input("Nome Completo do Cliente")
-                novo_tel = st.text_input("Telefone (Apenas Números com DDD, ex: 21999998888)")
-                btn_cli = st.form_submit_button("Salvar Cliente", use_container_width=True)
+            cliente_sel = st.selectbox("Proprietário da Máquina:", opcoes_clientes)
 
-                if btn_cli:
-                    tel_valido = validar_telefone(novo_tel)
-                    if not novo_nome.strip():
-                        st.error("O nome do cliente é obrigatório.")
-                    elif not tel_valido:
-                        st.error("Telefone inválido! Digite apenas números contendo o DDD (10 ou 11 dígitos).")
-                    else:
-                        novo_id_cli = f"CLI-{len(df_cli) + 1:03d}"
-                        novo_c = pd.DataFrame([
-                            {
-                                "ID_Cliente": novo_id_cli,
-                                "Nome": novo_nome.strip(),
-                                "Telefone": tel_valido,
-                            }
-                        ])
-                        df_cli = pd.concat([df_cli, novo_c], ignore_index=True)
-                        salvar_dataframe(df_cli, "clientes")
-                        registrar_log("CADASTRO_CLIENTE", f"Cliente '{novo_nome.strip()}' ({novo_id_cli}, tel {tel_valido}) cadastrado.")
-                        st.session_state.flash_sucesso = f"Cliente {novo_nome} cadastrado com sucesso!"
-                        st.rerun()
+            id_cli_final = None
+            nome_cli_final = ""
+            tel_cli_final = ""
 
-        elif cliente_sel != "-- Selecionar Cliente Existente --":
-            nome_cli_final = cliente_sel.split(" (")[0]
-            cli_row = df_cli[df_cli["Nome"] == nome_cli_final].iloc[0]
-            id_cli_final = cli_row["ID_Cliente"]
-            tel_cli_final = cli_row["Telefone"]
+            if cliente_sel == "+ Cadastrar Novo Cliente":
+                with st.form("form_novo_cliente", clear_on_submit=True):
+                    novo_nome = st.text_input("Nome Completo do Cliente")
+                    novo_tel = st.text_input("Telefone (Apenas Números com DDD, ex: 21999998888)")
+                    btn_cli = st.form_submit_button("Salvar Cliente", use_container_width=True)
 
-        st.markdown("---")
-        modo_entrada = st.selectbox(
-            "Modo de Registro:",
-            [
-                "Cadastrar Nova Máquina (com ou sem abertura imediata de passagem)",
-                "Abrir Nova Passagem para Máquina Já Cadastrada",
-            ],
-        )
-
-        if modo_entrada == "Cadastrar Nova Máquina (com ou sem abertura imediata de passagem)":
-            with st.form("form_mec_cadastro", clear_on_submit=True):
-                modelo = st.text_input("Modelo / Descrição do Equipamento")
-                codigo_manual = st.text_input(
-                    "Código da Máquina (Opcional: Deixe em branco para gerar automático)"
-                )
-                obs_cadastro = st.text_area("Observações de Cadastro / Recepção")
-                abrir_passagem_agora = st.checkbox(
-                    "Abrir 1ª passagem na oficina imediatamente (se desmarcado, a máquina fica com 0 passagens)",
-                    value=True,
-                )
-
-                submitted = st.form_submit_button("Registrar Máquina", use_container_width=True)
-
-                if submitted:
-                    if not id_cli_final:
-                        st.error("Por favor, selecione um cliente proprietário válido antes de salvar.")
-                    elif not modelo.strip():
-                        st.error("Preencha o modelo da máquina.")
-                    else:
-                        codigo_num = codigo_manual.strip() if codigo_manual.strip() != "" else f"{random.randint(1000, 9999)}"
-                        qr_gerado = f"QR-EQP-{codigo_num}"
-                        data_hora_atual = agora_str()
-
-                        df_maq = carregar_dados("maquinas")
-                        if not df_maq.empty and codigo_num in df_maq["ID"].astype(str).values:
-                            st.error(f"Já existe uma máquina cadastrada com o código {codigo_num}!")
+                    if btn_cli:
+                        tel_valido = validar_telefone(novo_tel)
+                        if not novo_nome.strip():
+                            st.error("O nome do cliente é obrigatório.")
+                        elif not tel_valido:
+                            st.error("Telefone inválido! Digite apenas números contendo o DDD (10 ou 11 dígitos).")
                         else:
-                            nova_maq = {
-                                "ID": str(codigo_num),
-                                "QR_Code": qr_gerado,
-                                "ID_Cliente": id_cli_final,
-                                "Cliente_Nome": nome_cli_final,
-                                "Telefone": tel_cli_final,
-                                "Modelo": modelo.strip(),
-                                "Data_Hora_Cadastro": data_hora_atual,
-                                "Obs_Cadastro": obs_cadastro,
-                            }
-                            df_maq = pd.concat([df_maq, pd.DataFrame([nova_maq])], ignore_index=True)
-                            salvar_dataframe(df_maq, "maquinas")
-
-                            if abrir_passagem_agora:
-                                id_pass = criar_passagem(str(codigo_num), data_entrada=data_hora_atual)
-                                registrar_log(
-                                    "ENTRADA_MAQUINA_PASSAGEM",
-                                    f"Máquina ID {codigo_num} ({modelo.strip()}) cadastrada para '{nome_cli_final}' com passagem #{id_pass} em {data_hora_atual}.",
-                                )
-                                st.session_state.flash_sucesso = (
-                                    f"Máquina ID {codigo_num} cadastrada e passagem #{id_pass} aberta em {data_hora_atual}!"
-                                )
-                            else:
-                                registrar_log(
-                                    "CADASTRO_MAQUINA_SEM_PASSAGEM",
-                                    f"Máquina ID {codigo_num} ({modelo.strip()}) cadastrada para '{nome_cli_final}' sem passagem aberta (0 passagens).",
-                                )
-                                st.session_state.flash_sucesso = (
-                                    f"Máquina ID {codigo_num} cadastrada com 0 passagens abertas!"
-                                )
+                            novo_id_cli = f"CLI-{len(df_cli) + 1:03d}"
+                            novo_c = pd.DataFrame([
+                                {
+                                    "ID_Cliente": novo_id_cli,
+                                    "Nome": novo_nome.strip(),
+                                    "Telefone": tel_valido,
+                                }
+                            ])
+                            df_cli = pd.concat([df_cli, novo_c], ignore_index=True)
+                            salvar_dataframe(df_cli, "clientes")
+                            registrar_log("CADASTRO_CLIENTE", f"Cliente '{novo_nome.strip()}' ({novo_id_cli}, tel {tel_valido}) cadastrado.")
+                            st.session_state.flash_sucesso = f"Cliente {novo_nome} cadastrado com sucesso!"
                             st.rerun()
 
-        else:
-            df_maq_exist = carregar_dados("maquinas")
-            if df_maq_exist.empty:
-                st.info("Nenhuma máquina cadastrada ainda.")
+            elif cliente_sel != "-- Selecionar Cliente Existente --":
+                nome_cli_final = cliente_sel.split(" (")[0]
+                cli_row = df_cli[df_cli["Nome"] == nome_cli_final].iloc[0]
+                id_cli_final = cli_row["ID_Cliente"]
+                tel_cli_final = cli_row["Telefone"]
+
+            st.markdown("---")
+            modo_entrada = st.selectbox(
+                "Modo de Registro:",
+                [
+                    "Cadastrar Nova Máquina (com ou sem abertura imediata de passagem)",
+                    "Abrir Nova Passagem para Máquina Já Cadastrada",
+                ],
+            )
+
+            if modo_entrada == "Cadastrar Nova Máquina (com ou sem abertura imediata de passagem)":
+                with st.form("form_mec_cadastro", clear_on_submit=True):
+                    modelo = st.text_input("Modelo / Descrição do Equipamento")
+                    codigo_manual = st.text_input(
+                        "Código da Máquina (Opcional: Deixe em branco para gerar automático)"
+                    )
+                    obs_cadastro = st.text_area("Observações de Cadastro / Recepção")
+                    fotos_cadastro = st.file_uploader(
+                        "📷 Anexar Fotos da Máquina na Chegada / Recepção (opcional):",
+                        type=["png", "jpg", "jpeg", "webp"],
+                        accept_multiple_files=True,
+                        key="upload_fotos_chegada",
+                    )
+                    abrir_passagem_agora = st.checkbox(
+                        "Abrir 1ª passagem na oficina imediatamente (se desmarcado, a máquina fica com 0 passagens)",
+                        value=True,
+                    )
+
+                    submitted = st.form_submit_button("Registrar Máquina", use_container_width=True)
+
+                    if submitted:
+                        if not id_cli_final:
+                            st.error("Por favor, selecione um cliente proprietário válido antes de salvar.")
+                        elif not modelo.strip():
+                            st.error("Preencha o modelo da máquina.")
+                        else:
+                            codigo_num = codigo_manual.strip() if codigo_manual.strip() != "" else f"{random.randint(1000, 9999)}"
+                            qr_gerado = f"QR-EQP-{codigo_num}"
+                            data_hora_atual = agora_str()
+                            fotos_json = serializar_imagens(fotos_cadastro)
+
+                            df_maq = carregar_dados("maquinas")
+                            if "Fotos_Cadastro" not in df_maq.columns:
+                                df_maq["Fotos_Cadastro"] = "[]"
+                            if not df_maq.empty and codigo_num in df_maq["ID"].astype(str).values:
+                                st.error(f"Já existe uma máquina cadastrada com o código {codigo_num}!")
+                            else:
+                                nova_maq = {
+                                    "ID": str(codigo_num),
+                                    "QR_Code": qr_gerado,
+                                    "ID_Cliente": id_cli_final,
+                                    "Cliente_Nome": nome_cli_final,
+                                    "Telefone": tel_cli_final,
+                                    "Modelo": modelo.strip(),
+                                    "Data_Hora_Cadastro": data_hora_atual,
+                                    "Obs_Cadastro": obs_cadastro,
+                                    "Fotos_Cadastro": fotos_json,
+                                }
+                                df_maq = pd.concat([df_maq, pd.DataFrame([nova_maq])], ignore_index=True)
+                                salvar_dataframe(df_maq, "maquinas")
+
+                                qtd_fotos = len(fotos_cadastro) if fotos_cadastro else 0
+                                if abrir_passagem_agora:
+                                    id_pass = criar_passagem(str(codigo_num), data_entrada=data_hora_atual)
+                                    registrar_log(
+                                        "ENTRADA_MAQUINA_PASSAGEM",
+                                        f"Máquina ID {codigo_num} ({modelo.strip()}) cadastrada para '{nome_cli_final}' com passagem #{id_pass} em {data_hora_atual} ({qtd_fotos} foto(s)).",
+                                    )
+                                    st.session_state.flash_sucesso = (
+                                        f"Máquina ID {codigo_num} cadastrada e passagem #{id_pass} aberta em {data_hora_atual}!"
+                                    )
+                                else:
+                                    registrar_log(
+                                        "CADASTRO_MAQUINA_SEM_PASSAGEM",
+                                        f"Máquina ID {codigo_num} ({modelo.strip()}) cadastrada para '{nome_cli_final}' sem passagem aberta ({qtd_fotos} foto(s)).",
+                                    )
+                                    st.session_state.flash_sucesso = (
+                                        f"Máquina ID {codigo_num} cadastrada com 0 passagens abertas!"
+                                    )
+                                st.rerun()
+
             else:
-                if id_cli_final:
-                    df_filtrada = df_maq_exist[df_maq_exist["ID_Cliente"] == id_cli_final]
-                    if df_filtrada.empty:
-                        st.warning("Este cliente não possui máquinas cadastradas. Exibindo todas as máquinas:")
-                        df_filtrada = df_maq_exist
+                df_maq_exist = carregar_dados("maquinas")
+                if df_maq_exist.empty:
+                    st.info("Nenhuma máquina cadastrada ainda.")
                 else:
-                    df_filtrada = df_maq_exist
-
-                opcoes_maq = [
-                    f"{r['ID']} — {r['Modelo']} (Cliente: {r['Cliente_Nome']})"
-                    for _, r in df_filtrada.iterrows()
-                ]
-                maq_sel = st.selectbox("Selecione a Máquina:", opcoes_maq)
-                id_maq_sel = maq_sel.split(" — ")[0]
-
-                exibir_banco_passagens_maquina(id_maq_sel, "Passagens Anteriores desta Máquina")
-
-                if st.button("➕ Abrir Nova Passagem na Oficina para esta Máquina", use_container_width=True):
-                    hora_ent = agora_str()
-                    id_pass = criar_passagem(id_maq_sel, data_entrada=hora_ent)
-                    registrar_log(
-                        "NOVA_PASSAGEM",
-                        f"Nova passagem #{id_pass} aberta para máquina ID {id_maq_sel} em {hora_ent}.",
-                    )
-                    st.session_state.flash_sucesso = (
-                        f"Nova passagem #{id_pass} aberta para a máquina ID {id_maq_sel} em {hora_ent}!"
-                    )
-                    st.rerun()
-
-    elif tela_ativa == "Etiqueta QR Code":
-        st.subheader("🖨️ Geração de QR Code Real & Impressão Direta")
-        df_maq = carregar_dados("maquinas")
-        if df_maq.empty:
-            st.info("Nenhuma máquina cadastrada para gerar etiquetas.")
-        else:
-            maq_etiqueta_id = st.selectbox("Selecione a máquina para gerar a etiqueta:", df_maq["ID"])
-            maq_info = df_maq[df_maq["ID"] == maq_etiqueta_id].iloc[0]
-
-            conteudo_qrcode = f"{maq_info['ID']}"
-            bytes_qrcode = gerar_imagem_qrcode(conteudo_qrcode)
-
-            st.markdown("---")
-            st.markdown(
-                f"""
-                <style>
-                    @media print {{
-                        body * {{
-                            visibility: hidden;
-                        }}
-                        #etiqueta-print, #etiqueta-print * {{
-                            visibility: visible;
-                        }}
-                        #etiqueta-print {{
-                            position: absolute;
-                            left: 0;
-                            top: 0;
-                            width: 100%;
-                        }}
-                    }}
-                </style>
-
-                <div id="etiqueta-print" style="border: 2px dashed #1D5FA7; padding: 18px; border-radius: 10px; max-width: 320px; width: 100%; background-color: #FFFFFF; color: #0F3D75; text-align: center; margin-bottom: 16px;">
-                    <h3 style="margin: 0; font-size: 18px; color: #0F3D75;">🔧 OFICINA CONECTADA</h3>
-                    <hr style="border: 1px solid #F5B700; margin: 10px 0;">
-                    <p style="font-size: 13px; margin: 4px 0; text-align: left;"><b>Cliente:</b> {maq_info['Cliente_Nome']}</p>
-                    <p style="font-size: 13px; margin: 4px 0; text-align: left;"><b>Modelo:</b> {maq_info['Modelo']}</p>
-                    <p style="font-size: 12px; margin: 4px 0; text-align: left;"><b>Cadastro:</b> {fmt_data(maq_info.get('Data_Hora_Cadastro'))}</p>
-                    <div style="margin: 10px 0;">
-                        <img src="data:image/png;base64,{__import__('base64').b64encode(bytes_qrcode).decode()}" width="150px" />
-                    </div>
-                    <h2 style="margin: 0; color: #0F3D75; background-color: #FFF8DB; border: 1px solid #F5B700; border-radius: 6px; padding: 4px; font-size: 22px;">ID: {maq_info['ID']}</h2>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-            st.markdown(
-                """
-                <button onclick="window.print();" style="background-color: #0F3D75; color: #FFD166; padding: 11px 20px; border: 2px solid #F5B700; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; width: 100%; max-width: 320px;">
-                    🖨️ Imprimir Etiqueta Diretamente
-                </button>
-                """,
-                unsafe_allow_html=True,
-            )
-            st.markdown("---")
-
-    elif tela_ativa == "Laudo Técnico":
-        st.subheader("🛠️ Diagnóstico, Exclusão/Alteração e Envio de Laudo")
-
-        df_consolidado = carregar_visao_consolidada_passagens()
-        editaveis = df_consolidado[
-            df_consolidado["ID_Passagem"].notna()
-            & df_consolidado["Status"].isin([
-                "Aguardando Avaliação Técnica",
-                "Aguardando Precificação (Secretaria)",
-                "Aguardando Precificação (Falta Peças no Estoque)",
-            ])
-        ]
-
-        if editaveis.empty:
-            st.info("Não há passagens disponíveis para alteração ou cadastro de laudo no momento.")
-        else:
-            opcoes_laudo = [
-                f"Máquina {r['ID']} (Passagem #{int(r['ID_Passagem'])}) — {r['Cliente_Nome']} [{r['Modelo']}]"
-                for _, r in editaveis.iterrows()
-            ]
-            sel_laudo = st.selectbox("Selecione a Máquina / Passagem:", opcoes_laudo)
-            row_sel = editaveis.iloc[opcoes_laudo.index(sel_laudo)]
-            eqp_id = str(row_sel["ID"])
-            id_pass = int(row_sel["ID_Passagem"])
-
-            st.write(
-                f"**Passagem:** #{id_pass} | **Cliente:** {row_sel['Cliente_Nome']} | **Modelo:** {row_sel['Modelo']} | **Status Atual:** {row_sel['Status']}"
-            )
-
-            if row_sel["Status"] in [
-                "Aguardando Precificação (Secretaria)",
-                "Aguardando Precificação (Falta Peças no Estoque)",
-            ]:
-                if st.button("🗑️ Excluir / Redefinir este Laudo (Corrigir Erro)", use_container_width=True):
-                    atualizar_passagem(id_pass, {
-                        "Descricao_Laudo": "Pendente",
-                        "Anomalias": "Nenhuma",
-                        "Pecas_Solicitadas": json.dumps([]),
-                        "Mecanico_Laudo": "Pendente",
-                        "Data_Hora_Laudo": "Pendente",
-                        "Status": "Aguardando Avaliação Técnica",
-                    })
-                    registrar_log("REDEFINIR_LAUDO", f"Laudo da passagem #{id_pass} (Máquina ID {eqp_id}) redefinido.")
-                    st.session_state.flash_sucesso = "Laudo redefinido com sucesso! Agora você pode preenchê-lo novamente."
-                    st.rerun()
-
-            st.markdown("### Selecionar Peças para o Orçamento")
-            df_est = carregar_dados("estoque")
-            opcoes_pecas = [
-                f"{row['Nome']} (Estoque: {row['Quantidade']})"
-                for _, row in df_est.iterrows()
-            ]
-
-            peca_selecionada = st.selectbox("Escolha a peça do almoxarifado:", opcoes_pecas)
-            qtd_peca = st.number_input("Quantidade necessária:", min_value=1, value=1, step=1)
-
-            if "carrinho_pecas" not in st.session_state:
-                st.session_state.carrinho_pecas = []
-
-            if st.button("➕ Adicionar Peça", use_container_width=True):
-                nome_peca_limpo = peca_selecionada.split(" (Estoque:")[0]
-                estoque_item = df_est[df_est["Nome"] == nome_peca_limpo].iloc[0]
-
-                st.session_state.carrinho_pecas.append({
-                    "peca": nome_peca_limpo,
-                    "qtd": qtd_peca,
-                    "preco_unit": estoque_item["Preco_Unitario"],
-                })
-
-                if qtd_peca > estoque_item["Quantidade"]:
-                    st.warning(
-                        f"⚠️ Aviso: A peça '{nome_peca_limpo}' está em falta no estoque (Estoque atual: {estoque_item['Quantidade']}, Pedido: {qtd_peca})."
-                    )
-                else:
-                    st.success(f"✅ Adicionado: {qtd_peca}x {nome_peca_limpo}")
-
-            if st.session_state.carrinho_pecas:
-                st.write("**Peças Selecionadas:**")
-                df_carrinho = pd.DataFrame(st.session_state.carrinho_pecas)
-                df_carrinho.columns = ["Peça", "Quantidade", "Preço Unitário (R$)"]
-                st.dataframe(df_carrinho, use_container_width=True, hide_index=True)
-
-                if st.button("🗑️ Limpar Carrinho de Peças", use_container_width=True):
-                    st.session_state.carrinho_pecas = []
-                    st.rerun()
-
-            st.markdown("---")
-            with st.form("form_laudo", clear_on_submit=True):
-                laudo = st.text_input(
-                    "Descrição Técnica do Serviço:",
-                    value=row_sel["Descricao_Laudo"] if row_sel["Descricao_Laudo"] != "Pendente" else "",
-                )
-                anomalias = st.text_input(
-                    "Observações / Anomalias Encontradas:",
-                    value=row_sel["Anomalias"] if row_sel["Anomalias"] != "Nenhuma" else "",
-                )
-
-                enviar_secretaria = st.form_submit_button("Salvar e Enviar Laudo para Secretaria", use_container_width=True)
-
-                if enviar_secretaria:
-                    if not laudo.strip():
-                        st.warning("Descreva o serviço a ser realizado.")
+                    if id_cli_final:
+                        df_filtrada = df_maq_exist[df_maq_exist["ID_Cliente"] == id_cli_final]
+                        if df_filtrada.empty:
+                            st.warning("Este cliente não possui máquinas cadastradas. Exibindo todas as máquinas:")
+                            df_filtrada = df_maq_exist
                     else:
-                        pecas_sol = st.session_state.carrinho_pecas.copy()
-                        falta_no_envio = False
+                        df_filtrada = df_maq_exist
 
-                        for item in pecas_sol:
-                            p_nome = item["peca"]
-                            p_qtd = item["qtd"]
-                            est_disp = df_est[df_est["Nome"] == p_nome]["Quantidade"].values[0]
-                            if p_qtd > est_disp:
-                                falta_no_envio = True
+                    opcoes_maq = [
+                        f"{r['ID']} — {r['Modelo']} (Cliente: {r['Cliente_Nome']})"
+                        for _, r in df_filtrada.iterrows()
+                    ]
+                    maq_sel = st.selectbox("Selecione a Máquina:", opcoes_maq)
+                    id_maq_sel = maq_sel.split(" — ")[0]
+                    row_maq_sel = df_maq_exist[df_maq_exist["ID"] == id_maq_sel].iloc[0]
 
-                        hora_laudo = agora_str()
-                        novo_status = (
-                            "Aguardando Precificação (Falta Peças no Estoque)"
-                            if falta_no_envio
-                            else "Aguardando Precificação (Secretaria)"
-                        )
+                    exibir_galeria_imagens(row_maq_sel.get("Fotos_Cadastro"), "📸 Fotos Registradas no Cadastro da Máquina", cols_qtd=3)
+                    exibir_banco_passagens_maquina(id_maq_sel, "Passagens Anteriores desta Máquina")
 
-                        atualizar_passagem(id_pass, {
-                            "Descricao_Laudo": laudo.strip(),
-                            "Anomalias": anomalias.strip() if anomalias.strip() else "Nenhuma",
-                            "Pecas_Solicitadas": json.dumps(pecas_sol),
-                            "Mecanico_Laudo": st.session_state.usuario_logado,
-                            "Data_Hora_Laudo": hora_laudo,
-                            "Status": novo_status,
-                        })
+                    fotos_nova_pass = st.file_uploader(
+                        "📷 Anexar Fotos da Chegada nesta Nova Passagem (opcional):",
+                        type=["png", "jpg", "jpeg", "webp"],
+                        accept_multiple_files=True,
+                        key="upload_fotos_nova_passagem",
+                    )
 
+                    if st.button("➕ Abrir Nova Passagem na Oficina para esta Máquina", use_container_width=True):
+                        hora_ent = agora_str()
+                        id_pass = criar_passagem(id_maq_sel, data_entrada=hora_ent)
+                        if fotos_nova_pass:
+                            atualizar_passagem(id_pass, {"Fotos_Laudo": serializar_imagens(fotos_nova_pass)})
                         registrar_log(
-                            "ENVIO_LAUDO_FALTA_PECAS" if falta_no_envio else "ENVIO_LAUDO",
-                            f"Laudo enviado na passagem #{id_pass} (Máquina ID {eqp_id}) em {hora_laudo}.",
+                            "NOVA_PASSAGEM",
+                            f"Nova passagem #{id_pass} aberta para máquina ID {id_maq_sel} em {hora_ent}.",
                         )
                         st.session_state.flash_sucesso = (
-                            "Laudo enviado com sucesso! Há peças em falta no estoque; a Secretaria foi avisada."
-                            if falta_no_envio
-                            else f"Laudo enviado com sucesso por {st.session_state.usuario_logado}!"
+                            f"Nova passagem #{id_pass} aberta para a máquina ID {id_maq_sel} em {hora_ent}!"
                         )
+                        st.rerun()
+
+        elif tela_ativa == "Etiqueta QR Code":
+            st.subheader("🖨️ Geração de QR Code Real & Impressão Direta")
+            df_maq = carregar_dados("maquinas")
+            if df_maq.empty:
+                st.info("Nenhuma máquina cadastrada para gerar etiquetas.")
+            else:
+                maq_etiqueta_id = st.selectbox("Selecione a máquina para gerar a etiqueta:", df_maq["ID"])
+                maq_info = df_maq[df_maq["ID"] == maq_etiqueta_id].iloc[0]
+
+                conteudo_qrcode = f"{maq_info['ID']}"
+                bytes_qrcode = gerar_imagem_qrcode(conteudo_qrcode)
+
+                st.markdown("---")
+                st.markdown(
+                    f"""
+                    <style>
+                        @media print {{
+                            body * {{
+                                visibility: hidden;
+                            }}
+                            #etiqueta-print, #etiqueta-print * {{
+                                visibility: visible;
+                            }}
+                            #etiqueta-print {{
+                                position: absolute;
+                                left: 0;
+                                top: 0;
+                                width: 100%;
+                            }}
+                        }}
+                    </style>
+
+                    <div id="etiqueta-print" style="border: 2px dashed #1D5FA7; padding: 18px; border-radius: 10px; max-width: 320px; width: 100%; background-color: #FFFFFF; color: #0F3D75; text-align: center; margin-bottom: 16px;">
+                        <h3 style="margin: 0; font-size: 18px; color: #0F3D75;">🔧 OFICINA CONECTADA</h3>
+                        <hr style="border: 1px solid #F5B700; margin: 10px 0;">
+                        <p style="font-size: 13px; margin: 4px 0; text-align: left;"><b>Cliente:</b> {maq_info['Cliente_Nome']}</p>
+                        <p style="font-size: 13px; margin: 4px 0; text-align: left;"><b>Modelo:</b> {maq_info['Modelo']}</p>
+                        <p style="font-size: 12px; margin: 4px 0; text-align: left;"><b>Cadastro:</b> {fmt_data(maq_info.get('Data_Hora_Cadastro'))}</p>
+                        <div style="margin: 10px 0;">
+                            <img src="data:image/png;base64,{base64.b64encode(bytes_qrcode).decode()}" width="150px" />
+                        </div>
+                        <h2 style="margin: 0; color: #0F3D75; background-color: #FFF8DB; border: 1px solid #F5B700; border-radius: 6px; padding: 4px; font-size: 22px;">ID: {maq_info['ID']}</h2>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+
+                st.markdown(
+                    """
+                    <button onclick="window.print();" style="background-color: #0F3D75; color: #FFD166; padding: 11px 20px; border: 2px solid #F5B700; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; width: 100%; max-width: 320px;">
+                        🖨️ Imprimir Etiqueta Diretamente
+                    </button>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.markdown("---")
+
+        elif tela_ativa == "Laudo Técnico":
+            st.subheader("🛠️ Diagnóstico, Fotos, Exclusão/Alteração e Envio de Laudo")
+
+            df_consolidado = carregar_visao_consolidada_passagens()
+            editaveis = df_consolidado[
+                df_consolidado["ID_Passagem"].notna()
+                & df_consolidado["Status"].isin([
+                    "Aguardando Avaliação Técnica",
+                    "Aguardando Precificação (Secretaria)",
+                    "Aguardando Precificação (Falta Peças no Estoque)",
+                ])
+            ]
+
+            if editaveis.empty:
+                st.info("Não há passagens disponíveis para alteração ou cadastro de laudo no momento.")
+            else:
+                opcoes_laudo = [
+                    f"Máquina {r['ID']} (Passagem #{int(r['ID_Passagem'])}) — {r['Cliente_Nome']} [{r['Modelo']}]"
+                    for _, r in editaveis.iterrows()
+                ]
+                sel_laudo = st.selectbox("Selecione a Máquina / Passagem:", opcoes_laudo)
+                row_sel = editaveis.iloc[opcoes_laudo.index(sel_laudo)]
+                eqp_id = str(row_sel["ID"])
+                id_pass = int(row_sel["ID_Passagem"])
+
+                st.write(
+                    f"**Passagem:** #{id_pass} | **Cliente:** {row_sel['Cliente_Nome']} | **Modelo:** {row_sel['Modelo']} | **Status Atual:** {row_sel['Status']}"
+                )
+                exibir_galeria_imagens(row_sel.get("Fotos_Cadastro"), "📸 Fotos na Chegada da Máquina", cols_qtd=3)
+                exibir_galeria_imagens(row_sel.get("Fotos_Laudo"), "🛠️ Fotos Já Anexadas nesta Passagem", cols_qtd=3)
+
+                if row_sel["Status"] in [
+                    "Aguardando Precificação (Secretaria)",
+                    "Aguardando Precificação (Falta Peças no Estoque)",
+                ]:
+                    if st.button("🗑️ Excluir / Redefinir este Laudo (Corrigir Erro)", use_container_width=True):
+                        atualizar_passagem(id_pass, {
+                            "Descricao_Laudo": "Pendente",
+                            "Anomalias": "Nenhuma",
+                            "Pecas_Solicitadas": json.dumps([]),
+                            "Mecanico_Laudo": "Pendente",
+                            "Data_Hora_Laudo": "Pendente",
+                            "Fotos_Laudo": "[]",
+                            "Status": "Aguardando Avaliação Técnica",
+                        })
+                        registrar_log("REDEFINIR_LAUDO", f"Laudo da passagem #{id_pass} (Máquina ID {eqp_id}) redefinido.")
+                        st.session_state.flash_sucesso = "Laudo redefinido com sucesso! Agora você pode preenchê-lo novamente."
+                        st.rerun()
+
+                st.markdown("### Selecionar Peças para o Orçamento")
+                df_est = carregar_dados("estoque")
+                opcoes_pecas = [
+                    f"{row['Nome']} (Estoque: {row['Quantidade']})"
+                    for _, row in df_est.iterrows()
+                ]
+
+                peca_selecionada = st.selectbox("Escolha a peça do almoxarifado:", opcoes_pecas)
+                qtd_peca = st.number_input("Quantidade necessária:", min_value=1, value=1, step=1)
+
+                if "carrinho_pecas" not in st.session_state:
+                    st.session_state.carrinho_pecas = []
+
+                if st.button("➕ Adicionar Peça", use_container_width=True):
+                    nome_peca_limpo = peca_selecionada.split(" (Estoque:")[0]
+                    estoque_item = df_est[df_est["Nome"] == nome_peca_limpo].iloc[0]
+
+                    st.session_state.carrinho_pecas.append({
+                        "peca": nome_peca_limpo,
+                        "qtd": qtd_peca,
+                        "preco_unit": estoque_item["Preco_Unitario"],
+                    })
+
+                    if qtd_peca > estoque_item["Quantidade"]:
+                        st.warning(
+                            f"⚠️ Aviso: A peça '{nome_peca_limpo}' está em falta no estoque (Estoque atual: {estoque_item['Quantidade']}, Pedido: {qtd_peca})."
+                        )
+                    else:
+                        st.success(f"✅ Adicionado: {qtd_peca}x {nome_peca_limpo}")
+
+                if st.session_state.carrinho_pecas:
+                    st.write("**Peças Selecionadas:**")
+                    df_carrinho = pd.DataFrame(st.session_state.carrinho_pecas)
+                    df_carrinho.columns = ["Peça", "Quantidade", "Preço Unitário (R$)"]
+                    st.dataframe(df_carrinho, use_container_width=True, hide_index=True)
+
+                    if st.button("🗑️ Limpar Carrinho de Peças", use_container_width=True):
                         st.session_state.carrinho_pecas = []
                         st.rerun()
 
-    elif tela_ativa == "Execução":
-        st.subheader("⚙️ Execução e Conclusão de Manutenções")
+                st.markdown("---")
+                with st.form("form_laudo", clear_on_submit=True):
+                    laudo = st.text_input(
+                        "Descrição Técnica do Serviço:",
+                        value=row_sel["Descricao_Laudo"] if row_sel["Descricao_Laudo"] != "Pendente" else "",
+                    )
+                    anomalias = st.text_input(
+                        "Observações / Anomalias Encontradas:",
+                        value=row_sel["Anomalias"] if row_sel["Anomalias"] != "Nenhuma" else "",
+                    )
+                    fotos_laudo_up = st.file_uploader(
+                        "📷 Anexar Imagens ao Laudo Técnico (defeitos, peças, painel):",
+                        type=["png", "jpg", "jpeg", "webp"],
+                        accept_multiple_files=True,
+                        key="upload_fotos_laudo",
+                    )
 
-        df_consolidado = carregar_visao_consolidada_passagens()
-        aprovadas_ou_manutencao = df_consolidado[
-            df_consolidado["ID_Passagem"].notna()
-            & df_consolidado["Status"].isin([
-                "Cliente Aprovou (Pronto para Iniciar)",
-                "Aguardando Peças",
-                "Em Manutenção (Na Bancada)",
-            ])
-        ]
+                    enviar_secretaria = st.form_submit_button("Salvar e Enviar Laudo para Secretaria", use_container_width=True)
 
-        if aprovadas_ou_manutencao.empty:
-            st.info("Não há máquinas com orçamento aprovado aguardando execução ou em manutenção no momento.")
-        else:
-            for _, row in aprovadas_ou_manutencao.iterrows():
-                id_pass = int(row["ID_Passagem"])
-                with st.expander(
-                    f"Máquina ID: {row['ID']} (Passagem #{id_pass}) - Cliente: {row['Cliente_Nome']} [{row['Status']}]"
-                ):
-                    st.write(f"**Modelo:** {row['Modelo']}")
-                    st.write(f"**Laudo:** {row['Descricao_Laudo']}")
-                    st.write(f"**Mecânico Responsável pelo Orçamento:** {fmt_data(row.get('Mecanico_Laudo'), 'Não informado')}")
-                    if row["Anomalias"] != "Nenhuma":
-                        st.warning(f"**Anomalias:** {row['Anomalias']}")
+                    if enviar_secretaria:
+                        if not laudo.strip():
+                            st.warning("Descreva o serviço a ser realizado.")
+                        else:
+                            pecas_sol = st.session_state.carrinho_pecas.copy()
+                            falta_no_envio = False
 
-                    if row["Status"] == "Aguardando Peças":
-                        st.warning("⏳ Esta máquina aguarda peças no estoque para iniciar a manutenção.")
-                        if st.button(f"🔄 Verificar Estoque e Iniciar Manutenção (ID {row['ID']})", key=f"rever_pecas_{id_pass}", use_container_width=True):
-                            hora_inicio = agora_str()
+                            for item in pecas_sol:
+                                p_nome = item["peca"]
+                                p_qtd = item["qtd"]
+                                est_disp = df_est[df_est["Nome"] == p_nome]["Quantidade"].values[0]
+                                if p_qtd > est_disp:
+                                    falta_no_envio = True
+
+                            hora_laudo = agora_str()
+                            novo_status = (
+                                "Aguardando Precificação (Falta Peças no Estoque)"
+                                if falta_no_envio
+                                else "Aguardando Precificação (Secretaria)"
+                            )
+
+                            # Mantém fotos anteriores se não anexou novas
+                            fotos_existentes = row_sel.get("Fotos_Laudo") or "[]"
+                            if fotos_laudo_up:
+                                fotos_final_json = serializar_imagens(fotos_laudo_up)
+                            else:
+                                fotos_final_json = fotos_existentes
+
                             atualizar_passagem(id_pass, {
-                                "Status": "Em Manutenção (Na Bancada)",
-                                "Mecanico_Execucao": st.session_state.usuario_logado,
-                                "Data_Hora_Inicio_Servico": hora_inicio,
+                                "Descricao_Laudo": laudo.strip(),
+                                "Anomalias": anomalias.strip() if anomalias.strip() else "Nenhuma",
+                                "Pecas_Solicitadas": json.dumps(pecas_sol),
+                                "Mecanico_Laudo": st.session_state.usuario_logado,
+                                "Data_Hora_Laudo": hora_laudo,
+                                "Fotos_Laudo": fotos_final_json,
+                                "Status": novo_status,
                             })
-                            registrar_log("INICIO_SERVICO", f"Manutenção iniciada na passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_inicio}.")
-                            st.session_state.flash_sucesso = "Peças disponíveis! Manutenção iniciada."
-                            st.rerun()
 
-                    elif row["Status"] == "Cliente Aprovou (Pronto para Iniciar)":
-                        if st.button(f"▶️ Iniciar Manutenção (ID {row['ID']})", key=f"iniciar_{id_pass}", use_container_width=True):
-                            hora_inicio = agora_str()
-                            atualizar_passagem(id_pass, {
-                                "Status": "Em Manutenção (Na Bancada)",
-                                "Mecanico_Execucao": st.session_state.usuario_logado,
-                                "Data_Hora_Inicio_Servico": hora_inicio,
-                            })
-                            registrar_log("INICIO_SERVICO", f"Manutenção iniciada na passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_inicio}.")
-                            st.session_state.flash_sucesso = f"Manutenção iniciada por {st.session_state.usuario_logado}!"
-                            st.rerun()
-
-                    elif row["Status"] == "Em Manutenção (Na Bancada)":
-                        st.info(f"⚙️ Em execução por: **{fmt_data(row.get('Mecanico_Execucao'), 'N/A')}**")
-                        if st.button(f"🏁 Concluir Serviço (ID {row['ID']})", key=f"concluir_{id_pass}", use_container_width=True):
-                            hora_conclusao = agora_str()
-                            atualizar_passagem(id_pass, {
-                                "Status": "Serviço Concluído (Aguardando Notificação ao Cliente)",
-                                "Data_Hora_Conclusao_Servico": hora_conclusao,
-                            })
                             registrar_log(
-                                "CONCLUSAO_SERVICO",
-                                f"Serviço concluído na passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_conclusao}. Aguardando notificação ao cliente pela Secretaria.",
+                                "ENVIO_LAUDO_FALTA_PECAS" if falta_no_envio else "ENVIO_LAUDO",
+                                f"Laudo enviado na passagem #{id_pass} (Máquina ID {eqp_id}) em {hora_laudo}.",
                             )
                             st.session_state.flash_sucesso = (
-                                "Serviço concluído! A Secretaria foi avisada para notificar o cliente."
+                                "Laudo enviado com sucesso! Há peças em falta no estoque; a Secretaria foi avisada."
+                                if falta_no_envio
+                                else f"Laudo enviado com sucesso por {st.session_state.usuario_logado}!"
                             )
+                            st.session_state.carrinho_pecas = []
                             st.rerun()
 
-    elif tela_ativa == "Máquinas e Passagens":
-        renderizar_tabela_com_busca()
+        elif tela_ativa == "Execução":
+            st.subheader("⚙️ Execução e Conclusão de Manutenções")
 
-    elif tela_ativa == "Histórico por Cliente":
-        renderizar_visao_historica_cliente(contexto_key="mecanico")
+            df_consolidado = carregar_visao_consolidada_passagens()
+            aprovadas_ou_manutencao = df_consolidado[
+                df_consolidado["ID_Passagem"].notna()
+                & df_consolidado["Status"].isin([
+                    "Cliente Aprovou (Pronto para Iniciar)",
+                    "Aguardando Peças",
+                    "Em Manutenção (Na Bancada)",
+                ])
+            ]
+
+            if aprovadas_ou_manutencao.empty:
+                st.info("Não há máquinas com orçamento aprovado aguardando execução ou em manutenção no momento.")
+            else:
+                for _, row in aprovadas_ou_manutencao.iterrows():
+                    id_pass = int(row["ID_Passagem"])
+                    with st.expander(
+                        f"Máquina ID: {row['ID']} (Passagem #{id_pass}) - Cliente: {row['Cliente_Nome']} [{row['Status']}]"
+                    ):
+                        st.write(f"**Modelo:** {row['Modelo']}")
+                        st.write(f"**Laudo:** {row['Descricao_Laudo']}")
+                        st.write(f"**Mecânico Responsável pelo Orçamento:** {fmt_data(row.get('Mecanico_Laudo'), 'Não informado')}")
+                        if row["Anomalias"] != "Nenhuma":
+                            st.warning(f"**Anomalias:** {row['Anomalias']}")
+                        exibir_galeria_imagens(row.get("Fotos_Laudo"), "🛠️ Fotos do Laudo", cols_qtd=3)
+
+                        if row["Status"] == "Aguardando Peças":
+                            st.warning("⏳ Esta máquina aguarda peças no estoque para iniciar a manutenção.")
+                            if st.button(f"🔄 Verificar Estoque e Iniciar Manutenção (ID {row['ID']})", key=f"rever_pecas_{id_pass}", use_container_width=True):
+                                hora_inicio = agora_str()
+                                atualizar_passagem(id_pass, {
+                                    "Status": "Em Manutenção (Na Bancada)",
+                                    "Mecanico_Execucao": st.session_state.usuario_logado,
+                                    "Data_Hora_Inicio_Servico": hora_inicio,
+                                })
+                                registrar_log("INICIO_SERVICO", f"Manutenção iniciada na passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_inicio}.")
+                                st.session_state.flash_sucesso = "Peças disponíveis! Manutenção iniciada."
+                                st.rerun()
+
+                        elif row["Status"] == "Cliente Aprovou (Pronto para Iniciar)":
+                            if st.button(f"▶️ Iniciar Manutenção (ID {row['ID']})", key=f"iniciar_{id_pass}", use_container_width=True):
+                                hora_inicio = agora_str()
+                                atualizar_passagem(id_pass, {
+                                    "Status": "Em Manutenção (Na Bancada)",
+                                    "Mecanico_Execucao": st.session_state.usuario_logado,
+                                    "Data_Hora_Inicio_Servico": hora_inicio,
+                                })
+                                registrar_log("INICIO_SERVICO", f"Manutenção iniciada na passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_inicio}.")
+                                st.session_state.flash_sucesso = f"Manutenção iniciada por {st.session_state.usuario_logado}!"
+                                st.rerun()
+
+                        elif row["Status"] == "Em Manutenção (Na Bancada)":
+                            st.info(f"⚙️ Em execução por: **{fmt_data(row.get('Mecanico_Execucao'), 'N/A')}**")
+                            if st.button(f"🏁 Concluir Serviço (ID {row['ID']})", key=f"concluir_{id_pass}", use_container_width=True):
+                                hora_conclusao = agora_str()
+                                atualizar_passagem(id_pass, {
+                                    "Status": "Serviço Concluído (Aguardando Notificação ao Cliente)",
+                                    "Data_Hora_Conclusao_Servico": hora_conclusao,
+                                })
+                                registrar_log(
+                                    "CONCLUSAO_SERVICO",
+                                    f"Serviço concluído na passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_conclusao}. Aguardando notificação ao cliente pela Secretaria.",
+                                )
+                                st.session_state.flash_sucesso = (
+                                    "Serviço concluído! A Secretaria foi avisada para notificar o cliente."
+                                )
+                                st.rerun()
+
+        elif tela_ativa == "Máquinas e Passagens":
+            renderizar_tabela_com_busca()
+
+        elif tela_ativa == "Histórico por Cliente":
+            renderizar_visao_historica_cliente(contexto_key="mecanico")
 
 
 # ---------------------------------------------------------
-# VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (COCKPIT + ATALHOS MOBILE)
+# VISÃO 2: SECRETARIA / ADMINISTRAÇÃO (Tela Inicial de Ícones + Cockpit/Telas)
 # ---------------------------------------------------------
 elif st.session_state.perfil_logado == "Secretaria (Administração)":
-    telas_sec_mobile = [
+    telas_sec = [
         "Cockpit",
         "Máquinas e Passagens",
         "Histórico por Cliente",
@@ -1629,7 +1778,7 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         "Mecânicos",
         "Logs",
     ]
-    rotulos_sec_mob = {
+    rotulos_sec_curtos = {
         "Cockpit": "⚡ Orçamentos / Cockpit",
         "Máquinas e Passagens": "🔍 Buscar Máquinas",
         "Histórico por Cliente": "👤 Clientes",
@@ -1638,486 +1787,483 @@ elif st.session_state.perfil_logado == "Secretaria (Administração)":
         "Logs": "📜 Logs",
     }
 
-    # No mobile exibe botões diretos para cada tela; no desktop vai direto para o cockpit completo
-    st.markdown('<div class="mobile-atalhos-banner">', unsafe_allow_html=True)
-    st.markdown(
-        f"📱 **Atalhos Rápidos ADM / Secretaria** • Tela: **{rotulos_sec_mob.get(st.session_state.tela_secretaria_mobile, 'Cockpit')}**",
-        unsafe_allow_html=True,
-    )
-    for row_start in range(0, len(telas_sec_mobile), 2):
-        par = telas_sec_mobile[row_start : row_start + 2]
-        m_cols = st.columns(len(par))
-        for j, nome_t in enumerate(par):
-            ativa = nome_t == st.session_state.tela_secretaria_mobile
-            rot_b = f"🟡 {rotulos_sec_mob[nome_t]}" if ativa else rotulos_sec_mob[nome_t]
-            if m_cols[j].button(rot_b, key=f"sec_mob_nav_{row_start + j}", use_container_width=True):
-                st.session_state.tela_secretaria_mobile = nome_t
-                st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    modulos_sec_hub = [
+        {"icone": "⚡", "titulo": "Orçamentos / Cockpit", "destino": "Cockpit", "descricao": "KPIs, precificação, envio ao cliente, aprovação e saída."},
+        {"icone": "🔍", "titulo": "Buscar Máquinas", "destino": "Máquinas e Passagens", "descricao": "Consultar máquinas, QR Code, fotos de chegada e laudo."},
+        {"icone": "👤", "titulo": "Histórico por Cliente", "destino": "Histórico por Cliente", "descricao": "Ver máquinas, orçamentos e cronologia por cliente."},
+        {"icone": "📦", "titulo": "Estoque", "destino": "Estoque", "descricao": "Alertas de estoque baixo, reposição e cadastro de peças."},
+        {"icone": "👥", "titulo": "Mecânicos", "destino": "Mecânicos", "descricao": "Gerenciar usuários e acessos dos mecânicos."},
+        {"icone": "📜", "titulo": "Logs", "destino": "Logs", "descricao": "Auditoria completa das ações e exportação CSV."},
+    ]
 
-    # Sidebar também oferece troca de tela caso o usuário esteja no mobile
-    st.sidebar.markdown("### 🧭 Atalhos Secretaria")
-    for idx, nome_t in enumerate(telas_sec_mobile):
-        ativa = nome_t == st.session_state.tela_secretaria_mobile
-        rot_s = f"🟡 {rotulos_sec_mob[nome_t]}" if ativa else rotulos_sec_mob[nome_t]
-        if st.sidebar.button(rot_s, key=f"sec_side_nav_{idx}", use_container_width=True):
-            st.session_state.tela_secretaria_mobile = nome_t
-            st.rerun()
-    st.sidebar.markdown("---")
+    tela_sec_ativa = st.session_state.tela_secretaria
 
-    df_maq_tab1 = carregar_visao_consolidada_passagens()
-    df_pass_ativas = df_maq_tab1[df_maq_tab1["ID_Passagem"].notna()].copy()
-    df_est = carregar_dados("estoque")
-
-    # FAIXA SUPERIOR DE INDICADORES
-    total_precificar = int(
-        df_pass_ativas["Status"].isin([
-            "Aguardando Precificação (Secretaria)",
-            "Aguardando Precificação (Falta Peças no Estoque)",
-        ]).sum()
-    ) if not df_pass_ativas.empty else 0
-
-    total_cliente_pend = int(
-        df_pass_ativas["Status"].isin([
-            "Aguardando Envio ao Cliente",
-            "Standby (Aguardando Resposta do Cliente)",
-        ]).sum()
-    ) if not df_pass_ativas.empty else 0
-
-    total_concl_pend = int(
-        df_pass_ativas["Status"].isin([
-            "Serviço Concluído (Aguardando Notificação ao Cliente)",
-            "Serviço Concluído (Aguardando Retirada)",
-        ]).sum()
-    ) if not df_pass_ativas.empty else 0
-
-    total_est_critico = int((df_est["Quantidade"] <= df_est["Minimo"]).sum()) if not df_est.empty else 0
-
-    receita_ativa = 0.0
-    if not df_pass_ativas.empty:
-        valid_rec = df_pass_ativas[df_pass_ativas["Status"] != "Orçamento Recusado"]
-        receita_ativa = float(pd.to_numeric(valid_rec["Valor_Orcamento"], errors="coerce").fillna(0.0).sum())
-
-    if is_mobile_device:
-        k1, k2 = st.columns(2)
-        k1.metric("📥 Para Precificar", total_precificar)
-        k2.metric("📤 Aguard. Cliente", total_cliente_pend)
-        k3, k4 = st.columns(2)
-        k3.metric("🏁 Notificar / Retirada", total_concl_pend)
-        k4.metric("🚨 Estoque Crítico", total_est_critico)
-        st.metric("💰 Volume Orçado", fmt_valor(receita_ativa))
-    else:
-        k1, k2, k3, k4, k5 = st.columns(5)
-        k1.metric("📥 Para Precificar", total_precificar)
-        k2.metric("📤 Aguard. Cliente", total_cliente_pend)
-        k3.metric("🏁 Notificar / Retirada", total_concl_pend)
-        k4.metric("🚨 Estoque Crítico", total_est_critico)
-        k5.metric("💰 Volume Orçado", fmt_valor(receita_ativa))
-
-    # Função reutilizável da Fila de Ação Rápida
-    def renderizar_fila_acao_rapida():
-        st.markdown(
-            '<div class="cockpit-box-title">⚡ Central de Ação Rápida — Orçamentos & Fluxo</div>',
-            unsafe_allow_html=True,
+    if tela_sec_ativa == "Início":
+        renderizar_barra_navegacao_ativa(telas_sec, "tela_secretaria", rotulos_sec_curtos)
+        renderizar_hub_inicial(
+            modulos_sec_hub,
+            "tela_secretaria",
+            "💻 Painel Inicial — Secretaria / Administração",
+            "Selecione o módulo que deseja abrir com um toque.",
         )
-
-        status_acao_sec = [
-            "Aguardando Precificação (Falta Peças no Estoque)",
-            "Aguardando Precificação (Secretaria)",
-            "Aguardando Envio ao Cliente",
-            "Standby (Aguardando Resposta do Cliente)",
-            "Serviço Concluído (Aguardando Notificação ao Cliente)",
-            "Serviço Concluído (Aguardando Retirada)",
-        ]
-
-        fila_sec = df_pass_ativas[df_pass_ativas["Status"].isin(status_acao_sec)].copy()
-
-        etapa_filtro = st.selectbox(
-            "Filtrar fila operacional:",
-            [
-                f"Todas as Pendências ({len(fila_sec)})",
-                "1. Precificar Orçamento",
-                "2. Enviar Orçamento ao Cliente",
-                "3. Aprovação / Reprovação do Cliente",
-                "4. Notificar Conclusão ao Cliente",
-                "5. Confirmar Saída / Retirada",
-            ],
-            key="filtro_fila_sec",
-        )
-
-        mapa_etapas = {
-            "1. Precificar Orçamento": [
-                "Aguardando Precificação (Secretaria)",
-                "Aguardando Precificação (Falta Peças no Estoque)",
-            ],
-            "2. Enviar Orçamento ao Cliente": ["Aguardando Envio ao Cliente"],
-            "3. Aprovação / Reprovação do Cliente": ["Standby (Aguardando Resposta do Cliente)"],
-            "4. Notificar Conclusão ao Cliente": ["Serviço Concluído (Aguardando Notificação ao Cliente)"],
-            "5. Confirmar Saída / Retirada": ["Serviço Concluído (Aguardando Retirada)"],
-        }
-
-        fila_filtrada = fila_sec[fila_sec["Status"].isin(mapa_etapas[etapa_filtro])] if etapa_filtro in mapa_etapas else fila_sec
-
-        if fila_filtrada.empty:
-            st.success("✅ Nenhuma pendência nesta fila no momento!")
-        else:
-            st.dataframe(
-                fila_filtrada[[
-                    "ID_Passagem",
-                    "ID",
-                    "Cliente_Nome",
-                    "Modelo",
-                    "Status",
-                    "Valor_Orcamento",
-                ]],
-                use_container_width=True,
-                hide_index=True,
-                height=165,
-            )
-
-            opcoes_pend = [
-                f"#{int(r['ID_Passagem'])} | Máq. {r['ID']} ({r['Modelo']}) — {r['Cliente_Nome']} [{r['Status']}]"
-                for _, r in fila_filtrada.iterrows()
-            ]
-            sel_pend = st.selectbox("Selecione o item para agir:", opcoes_pend, key="sel_acao_rapida")
-            row = fila_filtrada.iloc[opcoes_pend.index(sel_pend)]
-            id_pass = int(row["ID_Passagem"])
-            st_atual = row["Status"]
-
-            with st.container(border=True):
-                if is_mobile_device:
-                    st.markdown(
-                        f"**Máquina:** `{row['ID']}` — {row['Modelo']}  \n"
-                        f"**Cliente:** {row['Cliente_Nome']} • 📞 `{row['Telefone']}`  \n"
-                        f"**Status:** `{st_atual}` • **Orçamento:** **{fmt_valor(row['Valor_Orcamento'])}**  \n"
-                        f"**Laudo:** {fmt_data(row['Descricao_Laudo'])}"
-                    )
-                else:
-                    c_info1, c_info2 = st.columns([1.4, 1])
-                    c_info1.markdown(
-                        f"**Máquina:** `{row['ID']}` — {row['Modelo']}  \n"
-                        f"**Cliente:** {row['Cliente_Nome']} • 📞 `{row['Telefone']}`  \n"
-                        f"**Laudo:** {fmt_data(row['Descricao_Laudo'])} | **Anomalias:** {fmt_data(row['Anomalias'], 'Nenhuma')}"
-                    )
-                    c_info2.markdown(
-                        f"**Status:** `{st_atual}`  \n"
-                        f"**Orçamento:** **{fmt_valor(row['Valor_Orcamento'])}**  \n"
-                        f"**Mec. Laudo:** {fmt_data(row.get('Mecanico_Laudo'), 'N/A')}"
-                    )
-
-                if st_atual in [
-                    "Aguardando Precificação (Secretaria)",
-                    "Aguardando Precificação (Falta Peças no Estoque)",
-                ]:
-                    if st_atual == "Aguardando Precificação (Falta Peças no Estoque)":
-                        st.warning("⚠️ Atenção: este laudo possui peça(s) em quantidade acima do estoque atual.")
-
-                    custo_pecas = 0.0
-                    try:
-                        pecas = json.loads(row["Pecas_Solicitadas"])
-                        if pecas:
-                            custo_pecas = sum(item["qtd"] * item["preco_unit"] for item in pecas)
-                            resumo_p = ", ".join(f"{it['qtd']}x {it['peca']}" for it in pecas)
-                            st.caption(f"Peças ({fmt_valor(custo_pecas)}): {resumo_p}")
-                    except Exception:
-                        pass
-
-                    with st.form(key=f"form_calc_cockpit_{id_pass}", clear_on_submit=True):
-                        mao_de_obra = st.number_input("Mão de Obra (R$)", min_value=0.0, value=100.0, step=10.0)
-                        valor_total = custo_pecas + mao_de_obra
-                        st.markdown(f"**Total Final:** `{fmt_valor(valor_total)}`")
-                        if st.form_submit_button("✅ Confirmar Cálculo & Liberar Envio", use_container_width=True):
-                            atualizar_passagem(id_pass, {
-                                "Valor_Orcamento": valor_total,
-                                "Status": "Aguardando Envio ao Cliente",
-                            })
-                            registrar_log(
-                                "PRECIFICACAO_ORCAMENTO",
-                                f"Passagem #{id_pass} (Máquina ID {row['ID']}) precificada em {fmt_valor(valor_total)}.",
-                            )
-                            st.session_state.flash_sucesso = f"Orçamento #{id_pass} precificado em {fmt_valor(valor_total)}!"
-                            st.rerun()
-
-                elif st_atual == "Aguardando Envio ao Cliente":
-                    if st.button(f"📨 Confirmar Envio ao Cliente (#{id_pass})", key=f"env_cli_{id_pass}", use_container_width=True):
-                        hora_envio = agora_str()
-                        atualizar_passagem(id_pass, {
-                            "Data_Hora_Envio_Orcamento": hora_envio,
-                            "Status": "Standby (Aguardando Resposta do Cliente)",
-                        })
-                        registrar_log(
-                            "ENVIO_ORCAMENTO_CLIENTE",
-                            f"Orçamento da passagem #{id_pass} (Máquina ID {row['ID']}) enviado ao cliente '{row['Cliente_Nome']}' em {hora_envio}.",
-                        )
-                        st.session_state.flash_sucesso = f"Envio ao cliente confirmado em {hora_envio}!"
-                        st.rerun()
-
-                elif st_atual == "Standby (Aguardando Resposta do Cliente)":
-                    st.caption(f"Enviado ao cliente em: {fmt_data(row.get('Data_Hora_Envio_Orcamento'))}")
-                    b1, b2 = st.columns(2)
-                    if b1.button("✅ Cliente APROVOU", key=f"ap_{id_pass}", use_container_width=True):
-                        hora_resp = agora_str()
-                        try:
-                            pecas_req = json.loads(row["Pecas_Solicitadas"])
-                        except Exception:
-                            pecas_req = []
-
-                        df_est_up = carregar_dados("estoque")
-                        falta_estoque = False
-                        for p in pecas_req:
-                            p_nome = p["peca"]
-                            p_qtd_pedida = p["qtd"]
-                            estoque_atual = df_est_up[df_est_up["Nome"] == p_nome]["Quantidade"].values[0]
-                            if p_qtd_pedida > estoque_atual:
-                                falta_estoque = True
-                            else:
-                                e_idx = df_est_up[df_est_up["Nome"] == p_nome].index[0]
-                                df_est_up.loc[e_idx, "Quantidade"] -= p_qtd_pedida
-
-                        salvar_dataframe(df_est_up, "estoque")
-
-                        if falta_estoque:
-                            atualizar_passagem(id_pass, {
-                                "Data_Hora_Resposta_Cliente": hora_resp,
-                                "Status": "Aguardando Peças",
-                            })
-                            registrar_log(
-                                "CLIENTE_APROVOU_FALTA_PECAS",
-                                f"Cliente aprovou passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_resp} ('Aguardando Peças').",
-                            )
-                            st.session_state.flash_sucesso = "Cliente aprovou ('Aguardando Peças' no estoque)."
-                        else:
-                            atualizar_passagem(id_pass, {
-                                "Data_Hora_Resposta_Cliente": hora_resp,
-                                "Status": "Cliente Aprovou (Pronto para Iniciar)",
-                            })
-                            registrar_log(
-                                "CLIENTE_APROVOU",
-                                f"Cliente aprovou passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_resp}.",
-                            )
-                            st.session_state.flash_sucesso = "Aprovado! Peças baixadas e oficina notificada."
-                        st.rerun()
-
-                    if b2.button("❌ Cliente REPROVOU", key=f"rec_{id_pass}", use_container_width=True):
-                        hora_resp = agora_str()
-                        atualizar_passagem(id_pass, {
-                            "Data_Hora_Resposta_Cliente": hora_resp,
-                            "Status": "Orçamento Recusado",
-                        })
-                        registrar_log(
-                            "CLIENTE_REPROVOU",
-                            f"Cliente reprovou passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_resp}.",
-                        )
-                        st.session_state.flash_sucesso = "Orçamento marcado como recusado pelo cliente."
-                        st.rerun()
-
-                elif st_atual == "Serviço Concluído (Aguardando Notificação ao Cliente)":
-                    st.caption(f"Serviço concluído em: {fmt_data(row.get('Data_Hora_Conclusao_Servico'))}")
-                    if st.button(f"📲 Confirmar Notificação ao Cliente (#{id_pass})", key=f"notif_conc_{id_pass}", use_container_width=True):
-                        hora_notif = agora_str()
-                        atualizar_passagem(id_pass, {
-                            "Data_Hora_Notificacao_Conclusao": hora_notif,
-                            "Status": "Serviço Concluído (Aguardando Retirada)",
-                        })
-                        registrar_log(
-                            "NOTIFICACAO_CONCLUSAO_CLIENTE",
-                            f"Cliente '{row['Cliente_Nome']}' notificado da conclusão da passagem #{id_pass} em {hora_notif}.",
-                        )
-                        st.session_state.flash_sucesso = f"Cliente notificado em {hora_notif}! Aguardando retirada."
-                        st.rerun()
-
-                elif st_atual == "Serviço Concluído (Aguardando Retirada)":
-                    st.caption(f"Cliente notificado em: {fmt_data(row.get('Data_Hora_Notificacao_Conclusao'))}")
-                    if st.button(f"🏁 Confirmar Saída / Retirada (#{id_pass})", key=f"retirada_{id_pass}", use_container_width=True):
-                        hora_saida = agora_str()
-                        atualizar_passagem(id_pass, {
-                            "Status": "Entregue / Retirado",
-                            "Data_Hora_Saida": hora_saida,
-                        })
-                        registrar_log(
-                            "SAIDA_MAQUINA",
-                            f"Saída da passagem #{id_pass} (Máquina ID {row['ID']}) confirmada em {hora_saida}.",
-                        )
-                        st.session_state.flash_sucesso = f"Saída registrada em {hora_saida}! Ciclo encerrado."
-                        st.rerun()
-
-    def renderizar_bloco_estoque():
-        criticos = df_est[df_est["Quantidade"] <= df_est["Minimo"]]
-        if not criticos.empty:
-            nomes_crit = ", ".join(f"{r['Nome']} ({r['Quantidade']}/{r['Minimo']})" for _, r in criticos.iterrows())
-            st.warning(f"🚨 Estoque baixo: {nomes_crit}")
-
-        st.dataframe(df_est, use_container_width=True, hide_index=True, height=175)
-
-        sub_est_rep, sub_est_cad, sub_est_exc = st.tabs(["🔄 Repor", "➕ Nova Peça", "🗑️ Excluir"])
-        with sub_est_rep:
-            with st.form("form_repor_peca_cockpit", clear_on_submit=True):
-                peca_repor = st.selectbox("Peça:", df_est["Nome"])
-                qtd_adicionar = st.number_input("Qtd a adicionar:", min_value=1, value=5, step=1)
-                if st.form_submit_button("Confirmar Entrada no Estoque", use_container_width=True):
-                    p_idx = df_est[df_est["Nome"] == peca_repor].index[0]
-                    df_est.loc[p_idx, "Quantidade"] += qtd_adicionar
-                    salvar_dataframe(df_est, "estoque")
-                    registrar_log("REPOSICAO_ESTOQUE", f"Adicionadas {qtd_adicionar} unidade(s) de '{peca_repor}'.")
-                    st.session_state.flash_sucesso = f"+{qtd_adicionar}x '{peca_repor}' adicionadas!"
-                    st.rerun()
-
-        with sub_est_cad:
-            with st.form("nova_peca_form_cockpit", clear_on_submit=True):
-                nome_p = st.text_input("Nome da Nova Peça")
-                qtd_p = st.number_input("Qtd Inicial", min_value=1, value=10, step=1)
-                min_p = st.number_input("Estoque Mínimo", min_value=1, value=3, step=1)
-                preco_p = st.number_input("Preço Unitário (R$)", min_value=0.0, value=50.0, step=5.0)
-                if st.form_submit_button("Salvar Nova Peça", use_container_width=True):
-                    if not nome_p.strip():
-                        st.warning("Informe o nome da peça.")
-                    else:
-                        novo_id = f"PEC-{len(df_est) + 1:03d}"
-                        nova_p = pd.DataFrame([{
-                            "ID_Peca": novo_id,
-                            "Nome": nome_p.strip(),
-                            "Quantidade": qtd_p,
-                            "Minimo": min_p,
-                            "Preco_Unitario": preco_p,
-                        }])
-                        df_est = pd.concat([df_est, nova_p], ignore_index=True)
-                        salvar_dataframe(df_est, "estoque")
-                        registrar_log("CADASTRO_PECA", f"Peça '{nome_p.strip()}' ({novo_id}) cadastrada.")
-                        st.session_state.flash_sucesso = f"Peça '{nome_p}' cadastrada!"
-                        st.rerun()
-
-        with sub_est_exc:
-            peca_para_excluir = st.selectbox(
-                "Remover peça:",
-                ["-- Selecionar --"] + list(df_est["Nome"]),
-                key="exc_peca_cockpit",
-            )
-            if peca_para_excluir != "-- Selecionar --":
-                if st.button("⚠️ Confirmar Exclusão", key="btn_exc_peca_cockpit", use_container_width=True):
-                    df_est = df_est[df_est["Nome"] != peca_para_excluir]
-                    salvar_dataframe(df_est, "estoque")
-                    registrar_log("EXCLUIR_PECA", f"Peça '{peca_para_excluir}' removida do estoque.")
-                    st.session_state.flash_sucesso = f"Peça '{peca_para_excluir}' removida!"
-                    st.rerun()
-
-    def renderizar_bloco_mecanicos():
-        df_usr = carregar_dados("usuarios")
-        mecanicos_df = df_usr[df_usr["Perfil"] == "Mecânico (Oficina)"]
-        st.dataframe(mecanicos_df[["Usuario", "Nome"]], use_container_width=True, hide_index=True, height=145)
-
-        sub_mec_cad, sub_mec_exc = st.tabs(["➕ Novo Mecânico", "🗑️ Remover"])
-        with sub_mec_cad:
-            with st.form("form_novo_mecanico_cockpit", clear_on_submit=True):
-                nome_mec = st.text_input("Nome Completo")
-                user_mec = st.text_input("Login")
-                senha_mec = st.text_input("Senha", type="password")
-                if st.form_submit_button("Cadastrar Mecânico", use_container_width=True):
-                    if not nome_mec.strip() or not user_mec.strip() or not senha_mec.strip():
-                        st.warning("Preencha todos os campos.")
-                    elif user_mec.strip() in df_usr["Usuario"].values:
-                        st.error("Usuário já existe.")
-                    else:
-                        novo_mec_df = pd.DataFrame([{
-                            "Usuario": user_mec.strip(),
-                            "Senha": senha_mec.strip(),
-                            "Perfil": "Mecânico (Oficina)",
-                            "Nome": nome_mec.strip(),
-                        }])
-                        df_usr = pd.concat([df_usr, novo_mec_df], ignore_index=True)
-                        salvar_dataframe(df_usr, "usuarios")
-                        registrar_log("CADASTRO_MECANICO", f"Mecânico '{nome_mec.strip()}' cadastrado.")
-                        st.session_state.flash_sucesso = f"Mecânico {nome_mec} cadastrado!"
-                        st.rerun()
-
-        with sub_mec_exc:
-            mecs_para_remover = list(mecanicos_df["Nome"])
-            if mecs_para_remover:
-                mec_escolhido = st.selectbox("Mecânico:", ["-- Selecionar --"] + mecs_para_remover, key="exc_mec_cockpit")
-                if mec_escolhido != "-- Selecionar --":
-                    if st.button("⚠️ Remover Acesso", key="btn_exc_mec_cockpit", use_container_width=True):
-                        df_usr = df_usr[df_usr["Nome"] != mec_escolhido]
-                        salvar_dataframe(df_usr, "usuarios")
-                        registrar_log("REMOVER_MECANICO", f"Acesso do mecânico '{mec_escolhido}' removido.")
-                        st.session_state.flash_sucesso = f"Acesso de '{mec_escolhido}' removido!"
-                        st.rerun()
-
-    def renderizar_bloco_logs():
-        df_logs = carregar_dados("logs")
-        if df_logs.empty:
-            st.info("Nenhum log registrado.")
-        else:
-            df_logs = df_logs.sort_values("ID_Log", ascending=False)
-            filtro_acao = st.selectbox(
-                "Ação:",
-                ["Todas"] + sorted(df_logs["Acao"].unique().tolist()),
-                key="filtro_log_cockpit",
-            )
-            busca_log = st.text_input("Buscar:", key="busca_log_cockpit")
-
-            df_log_view = df_logs.copy()
-            if filtro_acao != "Todas":
-                df_log_view = df_log_view[df_log_view["Acao"] == filtro_acao]
-            if busca_log.strip():
-                termo_l = busca_log.strip().lower()
-                df_log_view = df_log_view[
-                    df_log_view["Usuario"].str.lower().str.contains(termo_l, na=False)
-                    | df_log_view["Detalhes"].str.lower().str.contains(termo_l, na=False)
-                ]
-
-            st.dataframe(
-                df_log_view[["ID_Log", "Data_Hora", "Usuario", "Acao", "Detalhes"]],
-                use_container_width=True,
-                hide_index=True,
-                height=195,
-            )
-
-            csv_logs = df_log_view.to_csv(index=False).encode("utf-8")
-            st.download_button(
-                label="⬇️ Exportar Logs (CSV)",
-                data=csv_logs,
-                file_name=f"logs_oficina_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv",
-                mime="text/csv",
-                use_container_width=True,
-            )
-
-    # No mobile, se escolheu uma tela específica diferente de "Cockpit", exibe diretamente essa tela
-    tela_sec_mob = st.session_state.tela_secretaria_mobile
-    if is_mobile_device and tela_sec_mob != "Cockpit":
-        if tela_sec_mob == "Máquinas e Passagens":
-            renderizar_tabela_com_busca("🔍 Buscar Máquinas e Passagens", compacto=True)
-        elif tela_sec_mob == "Histórico por Cliente":
-            renderizar_visao_historica_cliente(contexto_key="sec_mob", compacto=True)
-        elif tela_sec_mob == "Estoque":
-            renderizar_bloco_estoque()
-        elif tela_sec_mob == "Mecânicos":
-            renderizar_bloco_mecanicos()
-        elif tela_sec_mob == "Logs":
-            renderizar_bloco_logs()
     else:
-        col_esq, col_dir = st.columns([1.25, 1.15], gap="medium") if not is_mobile_device else (st.container(), st.container())
+        renderizar_barra_navegacao_ativa(telas_sec, "tela_secretaria", rotulos_sec_curtos)
 
-        with col_esq:
-            renderizar_fila_acao_rapida()
+        df_maq_tab1 = carregar_visao_consolidada_passagens()
+        df_pass_ativas = df_maq_tab1[df_maq_tab1["ID_Passagem"].notna()].copy()
+        df_est = carregar_dados("estoque")
 
-        with col_dir:
+        def renderizar_fila_acao_rapida():
             st.markdown(
-                '<div class="cockpit-box-title">📊 Painel Integrado — Máquinas, Clientes, Estoque & Auditoria</div>',
+                '<div class="cockpit-box-title">⚡ Central de Ação Rápida — Orçamentos & Fluxo</div>',
                 unsafe_allow_html=True,
             )
-            tab_geral, tab_cli, tab_est, tab_mec, tab_logs = st.tabs([
-                "🚜 Máquinas",
-                "👤 Clientes",
-                "📦 Estoque",
-                "👥 Mecânicos",
-                "📜 Logs",
-            ])
-            with tab_geral:
-                renderizar_tabela_com_busca("Visão Geral", compacto=True)
-            with tab_cli:
-                renderizar_visao_historica_cliente(contexto_key="secretaria_cockpit", compacto=True)
-            with tab_est:
-                renderizar_bloco_estoque()
-            with tab_mec:
-                renderizar_bloco_mecanicos()
-            with tab_logs:
-                renderizar_bloco_logs()
+
+            status_acao_sec = [
+                "Aguardando Precificação (Falta Peças no Estoque)",
+                "Aguardando Precificação (Secretaria)",
+                "Aguardando Envio ao Cliente",
+                "Standby (Aguardando Resposta do Cliente)",
+                "Serviço Concluído (Aguardando Notificação ao Cliente)",
+                "Serviço Concluído (Aguardando Retirada)",
+            ]
+
+            fila_sec = df_pass_ativas[df_pass_ativas["Status"].isin(status_acao_sec)].copy()
+
+            etapa_filtro = st.selectbox(
+                "Filtrar fila operacional:",
+                [
+                    f"Todas as Pendências ({len(fila_sec)})",
+                    "1. Precificar Orçamento",
+                    "2. Enviar Orçamento ao Cliente",
+                    "3. Aprovação / Reprovação do Cliente",
+                    "4. Notificar Conclusão ao Cliente",
+                    "5. Confirmar Saída / Retirada",
+                ],
+                key="filtro_fila_sec",
+            )
+
+            mapa_etapas = {
+                "1. Precificar Orçamento": [
+                    "Aguardando Precificação (Secretaria)",
+                    "Aguardando Precificação (Falta Peças no Estoque)",
+                ],
+                "2. Enviar Orçamento ao Cliente": ["Aguardando Envio ao Cliente"],
+                "3. Aprovação / Reprovação do Cliente": ["Standby (Aguardando Resposta do Cliente)"],
+                "4. Notificar Conclusão ao Cliente": ["Serviço Concluído (Aguardando Notificação ao Cliente)"],
+                "5. Confirmar Saída / Retirada": ["Serviço Concluído (Aguardando Retirada)"],
+            }
+
+            fila_filtrada = fila_sec[fila_sec["Status"].isin(mapa_etapas[etapa_filtro])] if etapa_filtro in mapa_etapas else fila_sec
+
+            if fila_filtrada.empty:
+                st.success("✅ Nenhuma pendência nesta fila no momento!")
+            else:
+                st.dataframe(
+                    fila_filtrada[[
+                        "ID_Passagem",
+                        "ID",
+                        "Cliente_Nome",
+                        "Modelo",
+                        "Status",
+                        "Valor_Orcamento",
+                    ]],
+                    use_container_width=True,
+                    hide_index=True,
+                    height=165,
+                )
+
+                opcoes_pend = [
+                    f"#{int(r['ID_Passagem'])} | Máq. {r['ID']} ({r['Modelo']}) — {r['Cliente_Nome']} [{r['Status']}]"
+                    for _, r in fila_filtrada.iterrows()
+                ]
+                sel_pend = st.selectbox("Selecione o item para agir:", opcoes_pend, key="sel_acao_rapida")
+                row = fila_filtrada.iloc[opcoes_pend.index(sel_pend)]
+                id_pass = int(row["ID_Passagem"])
+                st_atual = row["Status"]
+
+                with st.container(border=True):
+                    if is_mobile_device:
+                        st.markdown(
+                            f"**Máquina:** `{row['ID']}` — {row['Modelo']}  \n"
+                            f"**Cliente:** {row['Cliente_Nome']} • 📞 `{row['Telefone']}`  \n"
+                            f"**Status:** `{st_atual}` • **Orçamento:** **{fmt_valor(row['Valor_Orcamento'])}**  \n"
+                            f"**Laudo:** {fmt_data(row['Descricao_Laudo'])}"
+                        )
+                    else:
+                        c_info1, c_info2 = st.columns([1.4, 1])
+                        c_info1.markdown(
+                            f"**Máquina:** `{row['ID']}` — {row['Modelo']}  \n"
+                            f"**Cliente:** {row['Cliente_Nome']} • 📞 `{row['Telefone']}`  \n"
+                            f"**Laudo:** {fmt_data(row['Descricao_Laudo'])} | **Anomalias:** {fmt_data(row['Anomalias'], 'Nenhuma')}"
+                        )
+                        c_info2.markdown(
+                            f"**Status:** `{st_atual}`  \n"
+                            f"**Orçamento:** **{fmt_valor(row['Valor_Orcamento'])}**  \n"
+                            f"**Mec. Laudo:** {fmt_data(row.get('Mecanico_Laudo'), 'N/A')}"
+                        )
+
+                    exibir_galeria_imagens(row.get("Fotos_Cadastro"), "📸 Fotos na Chegada", cols_qtd=2)
+                    exibir_galeria_imagens(row.get("Fotos_Laudo"), "🛠️ Fotos do Laudo", cols_qtd=2)
+
+                    if st_atual in [
+                        "Aguardando Precificação (Secretaria)",
+                        "Aguardando Precificação (Falta Peças no Estoque)",
+                    ]:
+                        if st_atual == "Aguardando Precificação (Falta Peças no Estoque)":
+                            st.warning("⚠️ Atenção: este laudo possui peça(s) em quantidade acima do estoque atual.")
+
+                        custo_pecas = 0.0
+                        try:
+                            pecas = json.loads(row["Pecas_Solicitadas"])
+                            if pecas:
+                                custo_pecas = sum(item["qtd"] * item["preco_unit"] for item in pecas)
+                                resumo_p = ", ".join(f"{it['qtd']}x {it['peca']}" for it in pecas)
+                                st.caption(f"Peças ({fmt_valor(custo_pecas)}): {resumo_p}")
+                        except Exception:
+                            pass
+
+                        with st.form(key=f"form_calc_cockpit_{id_pass}", clear_on_submit=True):
+                            mao_de_obra = st.number_input("Mão de Obra (R$)", min_value=0.0, value=100.0, step=10.0)
+                            valor_total = custo_pecas + mao_de_obra
+                            st.markdown(f"**Total Final:** `{fmt_valor(valor_total)}`")
+                            if st.form_submit_button("✅ Confirmar Cálculo & Liberar Envio", use_container_width=True):
+                                atualizar_passagem(id_pass, {
+                                    "Valor_Orcamento": valor_total,
+                                    "Status": "Aguardando Envio ao Cliente",
+                                })
+                                registrar_log(
+                                    "PRECIFICACAO_ORCAMENTO",
+                                    f"Passagem #{id_pass} (Máquina ID {row['ID']}) precificada em {fmt_valor(valor_total)}.",
+                                )
+                                st.session_state.flash_sucesso = f"Orçamento #{id_pass} precificado em {fmt_valor(valor_total)}!"
+                                st.rerun()
+
+                    elif st_atual == "Aguardando Envio ao Cliente":
+                        if st.button(f"📨 Confirmar Envio ao Cliente (#{id_pass})", key=f"env_cli_{id_pass}", use_container_width=True):
+                            hora_envio = agora_str()
+                            atualizar_passagem(id_pass, {
+                                "Data_Hora_Envio_Orcamento": hora_envio,
+                                "Status": "Standby (Aguardando Resposta do Cliente)",
+                            })
+                            registrar_log(
+                                "ENVIO_ORCAMENTO_CLIENTE",
+                                f"Orçamento da passagem #{id_pass} (Máquina ID {row['ID']}) enviado ao cliente '{row['Cliente_Nome']}' em {hora_envio}.",
+                            )
+                            st.session_state.flash_sucesso = f"Envio ao cliente confirmado em {hora_envio}!"
+                            st.rerun()
+
+                    elif st_atual == "Standby (Aguardando Resposta do Cliente)":
+                        st.caption(f"Enviado ao cliente em: {fmt_data(row.get('Data_Hora_Envio_Orcamento'))}")
+                        b1, b2 = st.columns(2)
+                        if b1.button("✅ Cliente APROVOU", key=f"ap_{id_pass}", use_container_width=True):
+                            hora_resp = agora_str()
+                            try:
+                                pecas_req = json.loads(row["Pecas_Solicitadas"])
+                            except Exception:
+                                pecas_req = []
+
+                            df_est_up = carregar_dados("estoque")
+                            falta_estoque = False
+                            for p in pecas_req:
+                                p_nome = p["peca"]
+                                p_qtd_pedida = p["qtd"]
+                                estoque_atual = df_est_up[df_est_up["Nome"] == p_nome]["Quantidade"].values[0]
+                                if p_qtd_pedida > estoque_atual:
+                                    falta_estoque = True
+                                else:
+                                    e_idx = df_est_up[df_est_up["Nome"] == p_nome].index[0]
+                                    df_est_up.loc[e_idx, "Quantidade"] -= p_qtd_pedida
+
+                            salvar_dataframe(df_est_up, "estoque")
+
+                            if falta_estoque:
+                                atualizar_passagem(id_pass, {
+                                    "Data_Hora_Resposta_Cliente": hora_resp,
+                                    "Status": "Aguardando Peças",
+                                })
+                                registrar_log(
+                                    "CLIENTE_APROVOU_FALTA_PECAS",
+                                    f"Cliente aprovou passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_resp} ('Aguardando Peças').",
+                                )
+                                st.session_state.flash_sucesso = "Cliente aprovou ('Aguardando Peças' no estoque)."
+                            else:
+                                atualizar_passagem(id_pass, {
+                                    "Data_Hora_Resposta_Cliente": hora_resp,
+                                    "Status": "Cliente Aprovou (Pronto para Iniciar)",
+                                })
+                                registrar_log(
+                                    "CLIENTE_APROVOU",
+                                    f"Cliente aprovou passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_resp}.",
+                                )
+                                st.session_state.flash_sucesso = "Aprovado! Peças baixadas e oficina notificada."
+                            st.rerun()
+
+                        if b2.button("❌ Cliente REPROVOU", key=f"rec_{id_pass}", use_container_width=True):
+                            hora_resp = agora_str()
+                            atualizar_passagem(id_pass, {
+                                "Data_Hora_Resposta_Cliente": hora_resp,
+                                "Status": "Orçamento Recusado",
+                            })
+                            registrar_log(
+                                "CLIENTE_REPROVOU",
+                                f"Cliente reprovou passagem #{id_pass} (Máquina ID {row['ID']}) em {hora_resp}.",
+                            )
+                            st.session_state.flash_sucesso = "Orçamento marcado como recusado pelo cliente."
+                            st.rerun()
+
+                    elif st_atual == "Serviço Concluído (Aguardando Notificação ao Cliente)":
+                        st.caption(f"Serviço concluído em: {fmt_data(row.get('Data_Hora_Conclusao_Servico'))}")
+                        if st.button(f"📲 Confirmar Notificação ao Cliente (#{id_pass})", key=f"notif_conc_{id_pass}", use_container_width=True):
+                            hora_notif = agora_str()
+                            atualizar_passagem(id_pass, {
+                                "Data_Hora_Notificacao_Conclusao": hora_notif,
+                                "Status": "Serviço Concluído (Aguardando Retirada)",
+                            })
+                            registrar_log(
+                                "NOTIFICACAO_CONCLUSAO_CLIENTE",
+                                f"Cliente '{row['Cliente_Nome']}' notificado da conclusão da passagem #{id_pass} em {hora_notif}.",
+                            )
+                            st.session_state.flash_sucesso = f"Cliente notificado em {hora_notif}! Aguardando retirada."
+                            st.rerun()
+
+                    elif st_atual == "Serviço Concluído (Aguardando Retirada)":
+                        st.caption(f"Cliente notificado em: {fmt_data(row.get('Data_Hora_Notificacao_Conclusao'))}")
+                        if st.button(f"🏁 Confirmar Saída / Retirada (#{id_pass})", key=f"retirada_{id_pass}", use_container_width=True):
+                            hora_saida = agora_str()
+                            atualizar_passagem(id_pass, {
+                                "Status": "Entregue / Retirado",
+                                "Data_Hora_Saida": hora_saida,
+                            })
+                            registrar_log(
+                                "SAIDA_MAQUINA",
+                                f"Saída da passagem #{id_pass} (Máquina ID {row['ID']}) confirmada em {hora_saida}.",
+                            )
+                            st.session_state.flash_sucesso = f"Saída registrada em {hora_saida}! Ciclo encerrado."
+                            st.rerun()
+
+        def renderizar_bloco_estoque():
+            criticos = df_est[df_est["Quantidade"] <= df_est["Minimo"]]
+            if not criticos.empty:
+                nomes_crit = ", ".join(f"{r['Nome']} ({r['Quantidade']}/{r['Minimo']})" for _, r in criticos.iterrows())
+                st.warning(f"🚨 Estoque baixo: {nomes_crit}")
+
+            st.dataframe(df_est, use_container_width=True, hide_index=True, height=175)
+
+            sub_est_rep, sub_est_cad, sub_est_exc = st.tabs(["🔄 Repor", "➕ Nova Peça", "🗑️ Excluir"])
+            with sub_est_rep:
+                with st.form("form_repor_peca_cockpit", clear_on_submit=True):
+                    peca_repor = st.selectbox("Peça:", df_est["Nome"])
+                    qtd_adicionar = st.number_input("Qtd a adicionar:", min_value=1, value=5, step=1)
+                    if st.form_submit_button("Confirmar Entrada no Estoque", use_container_width=True):
+                        p_idx = df_est[df_est["Nome"] == peca_repor].index[0]
+                        df_est.loc[p_idx, "Quantidade"] += qtd_adicionar
+                        salvar_dataframe(df_est, "estoque")
+                        registrar_log("REPOSICAO_ESTOQUE", f"Adicionadas {qtd_adicionar} unidade(s) de '{peca_repor}'.")
+                        st.session_state.flash_sucesso = f"+{qtd_adicionar}x '{peca_repor}' adicionadas!"
+                        st.rerun()
+
+            with sub_est_cad:
+                with st.form("nova_peca_form_cockpit", clear_on_submit=True):
+                    nome_p = st.text_input("Nome da Nova Peça")
+                    qtd_p = st.number_input("Qtd Inicial", min_value=1, value=10, step=1)
+                    min_p = st.number_input("Estoque Mínimo", min_value=1, value=3, step=1)
+                    preco_p = st.number_input("Preço Unitário (R$)", min_value=0.0, value=50.0, step=5.0)
+                    if st.form_submit_button("Salvar Nova Peça", use_container_width=True):
+                        if not nome_p.strip():
+                            st.warning("Informe o nome da peça.")
+                        else:
+                            novo_id = f"PEC-{len(df_est) + 1:03d}"
+                            nova_p = pd.DataFrame([{
+                                "ID_Peca": novo_id,
+                                "Nome": nome_p.strip(),
+                                "Quantidade": qtd_p,
+                                "Minimo": min_p,
+                                "Preco_Unitario": preco_p,
+                            }])
+                            df_est = pd.concat([df_est, nova_p], ignore_index=True)
+                            salvar_dataframe(df_est, "estoque")
+                            registrar_log("CADASTRO_PECA", f"Peça '{nome_p.strip()}' ({novo_id}) cadastrada.")
+                            st.session_state.flash_sucesso = f"Peça '{nome_p}' cadastrada!"
+                            st.rerun()
+
+            with sub_est_exc:
+                peca_para_excluir = st.selectbox(
+                    "Remover peça:",
+                    ["-- Selecionar --"] + list(df_est["Nome"]),
+                    key="exc_peca_cockpit",
+                )
+                if peca_para_excluir != "-- Selecionar --":
+                    if st.button("⚠️ Confirmar Exclusão", key="btn_exc_peca_cockpit", use_container_width=True):
+                        df_est = df_est[df_est["Nome"] != peca_para_excluir]
+                        salvar_dataframe(df_est, "estoque")
+                        registrar_log("EXCLUIR_PECA", f"Peça '{peca_para_excluir}' removida do estoque.")
+                        st.session_state.flash_sucesso = f"Peça '{peca_para_excluir}' removida!"
+                        st.rerun()
+
+        def renderizar_bloco_mecanicos():
+            df_usr = carregar_dados("usuarios")
+            mecanicos_df = df_usr[df_usr["Perfil"] == "Mecânico (Oficina)"]
+            st.dataframe(mecanicos_df[["Usuario", "Nome"]], use_container_width=True, hide_index=True, height=145)
+
+            sub_mec_cad, sub_mec_exc = st.tabs(["➕ Novo Mecânico", "🗑️ Remover"])
+            with sub_mec_cad:
+                with st.form("form_novo_mecanico_cockpit", clear_on_submit=True):
+                    nome_mec = st.text_input("Nome Completo")
+                    user_mec = st.text_input("Login")
+                    senha_mec = st.text_input("Senha", type="password")
+                    if st.form_submit_button("Cadastrar Mecânico", use_container_width=True):
+                        if not nome_mec.strip() or not user_mec.strip() or not senha_mec.strip():
+                            st.warning("Preencha todos os campos.")
+                        elif user_mec.strip() in df_usr["Usuario"].values:
+                            st.error("Usuário já existe.")
+                        else:
+                            novo_mec_df = pd.DataFrame([{
+                                "Usuario": user_mec.strip(),
+                                "Senha": senha_mec.strip(),
+                                "Perfil": "Mecânico (Oficina)",
+                                "Nome": nome_mec.strip(),
+                            }])
+                            df_usr = pd.concat([df_usr, novo_mec_df], ignore_index=True)
+                            salvar_dataframe(df_usr, "usuarios")
+                            registrar_log("CADASTRO_MECANICO", f"Mecânico '{nome_mec.strip()}' cadastrado.")
+                            st.session_state.flash_sucesso = f"Mecânico {nome_mec} cadastrado!"
+                            st.rerun()
+
+            with sub_mec_exc:
+                mecs_para_remover = list(mecanicos_df["Nome"])
+                if mecs_para_remover:
+                    mec_escolhido = st.selectbox("Mecânico:", ["-- Selecionar --"] + mecs_para_remover, key="exc_mec_cockpit")
+                    if mec_escolhido != "-- Selecionar --":
+                        if st.button("⚠️ Remover Acesso", key="btn_exc_mec_cockpit", use_container_width=True):
+                            df_usr = df_usr[df_usr["Nome"] != mec_escolhido]
+                            salvar_dataframe(df_usr, "usuarios")
+                            registrar_log("REMOVER_MECANICO", f"Acesso do mecânico '{mec_escolhido}' removido.")
+                            st.session_state.flash_sucesso = f"Acesso de '{mec_escolhido}' removido!"
+                            st.rerun()
+
+        def renderizar_bloco_logs():
+            df_logs = carregar_dados("logs")
+            if df_logs.empty:
+                st.info("Nenhum log registrado.")
+            else:
+                df_logs = df_logs.sort_values("ID_Log", ascending=False)
+                filtro_acao = st.selectbox(
+                    "Ação:",
+                    ["Todas"] + sorted(df_logs["Acao"].unique().tolist()),
+                    key="filtro_log_cockpit",
+                )
+                busca_log = st.text_input("Buscar:", key="busca_log_cockpit")
+
+                df_log_view = df_logs.copy()
+                if filtro_acao != "Todas":
+                    df_log_view = df_log_view[df_log_view["Acao"] == filtro_acao]
+                if busca_log.strip():
+                    termo_l = busca_log.strip().lower()
+                    df_log_view = df_log_view[
+                        df_log_view["Usuario"].str.lower().str.contains(termo_l, na=False)
+                        | df_log_view["Detalhes"].str.lower().str.contains(termo_l, na=False)
+                    ]
+
+                st.dataframe(
+                    df_log_view[["ID_Log", "Data_Hora", "Usuario", "Acao", "Detalhes"]],
+                    use_container_width=True,
+                    hide_index=True,
+                    height=195,
+                )
+
+                csv_logs = df_log_view.to_csv(index=False).encode("utf-8")
+                st.download_button(
+                    label="⬇️ Exportar Logs (CSV)",
+                    data=csv_logs,
+                    file_name=f"logs_oficina_{datetime.datetime.now().strftime('%Y%m%d_%H%M')}.csv",
+                    mime="text/csv",
+                    use_container_width=True,
+                )
+
+        # KPIs no topo
+        total_precificar = int(
+            df_pass_ativas["Status"].isin([
+                "Aguardando Precificação (Secretaria)",
+                "Aguardando Precificação (Falta Peças no Estoque)",
+            ]).sum()
+        ) if not df_pass_ativas.empty else 0
+
+        total_cliente_pend = int(
+            df_pass_ativas["Status"].isin([
+                "Aguardando Envio ao Cliente",
+                "Standby (Aguardando Resposta do Cliente)",
+            ]).sum()
+        ) if not df_pass_ativas.empty else 0
+
+        total_concl_pend = int(
+            df_pass_ativas["Status"].isin([
+                "Serviço Concluído (Aguardando Notificação ao Cliente)",
+                "Serviço Concluído (Aguardando Retirada)",
+            ]).sum()
+        ) if not df_pass_ativas.empty else 0
+
+        total_est_critico = int((df_est["Quantidade"] <= df_est["Minimo"]).sum()) if not df_est.empty else 0
+
+        receita_ativa = 0.0
+        if not df_pass_ativas.empty:
+            valid_rec = df_pass_ativas[df_pass_ativas["Status"] != "Orçamento Recusado"]
+            receita_ativa = float(pd.to_numeric(valid_rec["Valor_Orcamento"], errors="coerce").fillna(0.0).sum())
+
+        if is_mobile_device:
+            k1, k2 = st.columns(2)
+            k1.metric("📥 Para Precificar", total_precificar)
+            k2.metric("📤 Aguard. Cliente", total_cliente_pend)
+            k3, k4 = st.columns(2)
+            k3.metric("🏁 Notificar / Retirada", total_concl_pend)
+            k4.metric("🚨 Estoque Crítico", total_est_critico)
+            st.metric("💰 Volume Orçado", fmt_valor(receita_ativa))
+        else:
+            k1, k2, k3, k4, k5 = st.columns(5)
+            k1.metric("📥 Para Precificar", total_precificar)
+            k2.metric("📤 Aguard. Cliente", total_cliente_pend)
+            k3.metric("🏁 Notificar / Retirada", total_concl_pend)
+            k4.metric("🚨 Estoque Crítico", total_est_critico)
+            k5.metric("💰 Volume Orçado", fmt_valor(receita_ativa))
+
+        # Se abriu uma tela específica (ex.: no mobile), renderiza ela diretamente
+        if tela_sec_ativa == "Máquinas e Passagens":
+            renderizar_tabela_com_busca("🔍 Buscar Máquinas e Passagens", compacto=is_mobile_device)
+        elif tela_sec_ativa == "Histórico por Cliente":
+            renderizar_visao_historica_cliente(contexto_key="sec_tela", compacto=is_mobile_device)
+        elif tela_sec_ativa == "Estoque":
+            renderizar_bloco_estoque()
+        elif tela_sec_ativa == "Mecânicos":
+            renderizar_bloco_mecanicos()
+        elif tela_sec_ativa == "Logs":
+            renderizar_bloco_logs()
+        else:
+            # Tela Cockpit (visão combinada para desktop ou foco na fila no mobile)
+            if is_mobile_device:
+                renderizar_fila_acao_rapida()
+            else:
+                col_esq, col_dir = st.columns([1.25, 1.15], gap="medium")
+                with col_esq:
+                    renderizar_fila_acao_rapida()
+                with col_dir:
+                    st.markdown(
+                        '<div class="cockpit-box-title">📊 Painel Integrado — Máquinas, Clientes, Estoque & Auditoria</div>',
+                        unsafe_allow_html=True,
+                    )
+                    tab_geral, tab_cli, tab_est, tab_mec, tab_logs = st.tabs([
+                        "🚜 Máquinas",
+                        "👤 Clientes",
+                        "📦 Estoque",
+                        "👥 Mecânicos",
+                        "📜 Logs",
+                    ])
+                    with tab_geral:
+                        renderizar_tabela_com_busca("Visão Geral", compacto=True)
+                    with tab_cli:
+                        renderizar_visao_historica_cliente(contexto_key="secretaria_cockpit", compacto=True)
+                    with tab_est:
+                        renderizar_bloco_estoque()
+                    with tab_mec:
+                        renderizar_bloco_mecanicos()
+                    with tab_logs:
+                        renderizar_bloco_logs()
