@@ -18,12 +18,14 @@ def detectar_mobile() -> bool:
     try:
         largura_tela = st_javascript("window.innerWidth", key="detect_inner_width")
     except Exception:
-        return False
-    return (
-        isinstance(largura_tela, (int, float))
-        and largura_tela > 0
-        and largura_tela <= 768
-    )
+        largura_tela = None
+
+    # Salva no session_state para não perder o valor entre reruns
+    if isinstance(largura_tela, (int, float)) and largura_tela > 0:
+        st.session_state["largura_tela_cache"] = largura_tela
+
+    largura_final = st.session_state.get("largura_tela_cache")
+    return bool(largura_final and largura_final <= 768)
 
 
 def criar_logger_sessao():
@@ -197,6 +199,46 @@ def renderizar_notificacoes_sidebar() -> None:
     st.sidebar.markdown("---")
 
 
+def _renderizar_grade_mobile(
+    modulos_config: list[dict],
+    chave_estado: str,
+    titulo_hub: str,
+    subtitulo_hub: str,
+) -> None:
+    st.markdown(
+        f"""
+        <div class="mob-hub-hero">
+            <h3>{titulo_hub}</h3>
+            <p>{subtitulo_hub}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    for i in range(0, len(modulos_config), 2):
+        grupo = modulos_config[i : i + 2]
+        cols = st.columns(len(grupo), gap="small")
+        for idx, mod in enumerate(grupo):
+            variante_badge = "amarelo" if idx % 2 == 1 else ""
+            with cols[idx]:
+                st.markdown(
+                    f"""
+                    <div class="mob-tile-card">
+                        <div class="mob-tile-badge {variante_badge}">{mod['icone']}</div>
+                        <div class="mob-tile-label">{mod['titulo']}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                if st.button(
+                    "Abrir",
+                    key=f"mob_tile_btn_{chave_estado}_{mod['destino']}",
+                    use_container_width=True,
+                ):
+                    st.session_state[chave_estado] = mod["destino"]
+                    st.rerun()
+
+
 def renderizar_grade_botoes_inicial(
     modulos_config: list[dict],
     chave_estado: str,
@@ -205,6 +247,15 @@ def renderizar_grade_botoes_inicial(
     is_mobile: bool = False,
 ) -> None:
     """Renderiza a grade inicial de botões dos módulos."""
+    if is_mobile:
+        _renderizar_grade_mobile(
+            modulos_config=modulos_config,
+            chave_estado=chave_estado,
+            titulo_hub=titulo_hub,
+            subtitulo_hub=subtitulo_hub,
+        )
+        return
+
     st.markdown(
         f"""
         <div class="hub-banner">
@@ -214,10 +265,9 @@ def renderizar_grade_botoes_inicial(
         """,
         unsafe_allow_html=True,
     )
-    colunas_por_linha = 2 if is_mobile else 3
-    for i in range(0, len(modulos_config), colunas_por_linha):
-        grupo = modulos_config[i : i + colunas_por_linha]
-        cols = st.columns(len(grupo), gap="small" if is_mobile else "medium")
+    for i in range(0, len(modulos_config), 3):
+        grupo = modulos_config[i : i + 3]
+        cols = st.columns(len(grupo), gap="medium")
         for idx, mod in enumerate(grupo):
             with cols[idx]:
                 if st.button(
@@ -227,29 +277,31 @@ def renderizar_grade_botoes_inicial(
                 ):
                     st.session_state[chave_estado] = mod["destino"]
                     st.rerun()
-                if not is_mobile:
-                    st.caption(mod["descricao"])
-
+                st.caption(mod["descricao"])
 
 def renderizar_barra_navegacao_ativa(
     opcoes_telas: list[str],
     chave_estado: str,
     rotulos_curtos: dict[str, str],
+    is_mobile: bool = False,
 ) -> None:
-    """Renderiza navegação no mobile, painel superior no desktop e atalhos na sidebar."""
+    """Renderiza navegação enxuta sem empilhar botões no mobile."""
     tela_atual = st.session_state.get(chave_estado, "Início")
 
-    st.markdown('<div class="login-mobile-only">', unsafe_allow_html=True)
-    if st.button(
-        "🏠 Voltar à Grade Inicial",
-        key=f"mob_home_{chave_estado}",
-        use_container_width=True,
-    ):
-        st.session_state[chave_estado] = "Início"
-        st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
+    # Na tela "Início" não precisa exibir barra superior nem botão de voltar
+    if tela_atual == "Início":
+        return
 
-    st.markdown('<div class="nav-desktop-only">', unsafe_allow_html=True)
+    if is_mobile:
+        if st.button(
+            "🏠 Voltar à Grade Inicial",
+            key=f"mob_home_{chave_estado}",
+            use_container_width=True,
+        ):
+            st.session_state[chave_estado] = "Início"
+            st.rerun()
+        return
+
     st.markdown(
         '<div class="painel-nav-desktop-label">🧭 Painel Superior de Navegação</div>',
         unsafe_allow_html=True,
@@ -275,28 +327,3 @@ def renderizar_barra_navegacao_ativa(
         ):
             st.session_state[chave_estado] = nome_tela
             st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    st.sidebar.markdown("### 🧭 Telas do Módulo")
-    if st.sidebar.button(
-        "🏠 Início (Grade)",
-        key=f"side_home_{chave_estado}",
-        use_container_width=True,
-    ):
-        st.session_state[chave_estado] = "Início"
-        st.rerun()
-    for idx, nome_tela in enumerate(opcoes_telas):
-        ativa = nome_tela == tela_atual
-        rotulo_side = (
-            f"🟡 {rotulos_curtos.get(nome_tela, nome_tela)}"
-            if ativa
-            else rotulos_curtos.get(nome_tela, nome_tela)
-        )
-        if st.sidebar.button(
-            rotulo_side,
-            key=f"side_nav_{chave_estado}_{idx}",
-            use_container_width=True,
-        ):
-            st.session_state[chave_estado] = nome_tela
-            st.rerun()
-    st.sidebar.markdown("---")
