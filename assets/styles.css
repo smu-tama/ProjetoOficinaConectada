@@ -1,0 +1,316 @@
+:root {
+    --azul-escuro: #0F3D75;
+    --azul-principal: #1D5FA7;
+    --azul-claro: #EAF2FC;
+    --amarelo: #F5B700;
+    --amarelo-claro: #FFF8DB;
+    --branco: #FFFFFF;
+    --borda: #C8D9EE;
+    --texto: #132238;
+}
+
+/* Fundo branco/gelo minimalista */
+.stApp,
+[data-testid="stHeader"],
+[data-testid="stBottomBlockContainer"] {
+    background-color: #F7FAFE !important;
+    color: var(--texto) !important;
+}
+
+[data-testid="stHeader"] {
+    background-color: transparent !important;
+}
+
+.block-container {
+    padding-top: 0.9rem !important;
+    padding-bottom: 1.1rem !important;
+    max-width: 98% !important;
+}
+
+/* Barra lateral em branco e azul */
+[data-testid="stSidebar"] {
+    background-color: var(--branco) !important;
+    border-right: 2px solid var(--borda) !important;
+}
+
+/* Cabeçalho principal branco, azul e amarelo */
+.oficina-header {
+    background: linear-gradient(95deg, #0F3D75 0%, #1D5FA7 85%, #F5B700 100%);
+    color: #FFFFFF;
+    padding: 11px 18px;
+    border-radius: 10px;
+    border-bottom: 3px solid #F5B700;
+    margin-bottom: 10px;
+    box-shadow: 0 2px 6px rgba(15, 61, 117, 0.10);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+.oficina-header h1 {
+    margin: 0;
+    font-size: 1.28rem;
+    color: #FFFFFF;
+    letter-spacing: -0.01em;
+}
+
+.oficina-header span {
+    font-size: 0.82rem;
+    color: #FFF8DB;
+    font-weight: 500;
+}
+
+/* Caixas de texto, número e área de texto */
+.stTextInput > div > div > input,
+.stTextArea > div > div > textarea,
+.stNumberInput > div > div > input {
+    background-color: #FFFFFF !important;
+    color: #132238 !important;
+    border: 1.5px solid #B8CFE8 !important;
+    border-radius: 8px !important;
+    font-size: 0.9rem !important;
+}
+
+.stTextInput > div > div > input:focus,
+.stTextArea > div > div > textarea:focus,
+.stNumberInput > div > div > input:focus {
+    border-color: #1D5FA7 !important;
+    box-shadow: 0 0 0 2px rgba(245, 183, 0, 0.28) !important;
+}
+
+/* Caixas de seleção (Selectbox / MultiSelect) */
+div[data-baseweb="select"] > div {
+    background-color: #FFFFFF !important;
+    color: #132238 !important;
+    border: 1.5px solid #B8CFE8 !important;
+    border-radius: 8px !important;
+    min-height: 40px;
+}
+
+div[data-baseweb="select"] > div:hover {
+    border-color: #1D5FA7 !important;
+}
+
+ul[data-baseweb="menu"] {
+    background-color: #FFFFFF !important;
+    border: 1.5px solid #1D5FA7 !important;
+    border-radius: 8px !important;
+}
+
+ul[data-baseweb="menu"] li:hover {
+    background-color: #FFF8DB !important;
+    color: #0F3D75 !important;
+}
+
+/* Upload de arquivos */
+[data-testid="stFileUploader"] section {
+    background-color: #FFFFFF !important;
+    border: 1.5px dashed #1D5FA7 !important;
+    border-radius: 9px !important;
+}
+
+/* Tabelas e dataframes */
+[data-testid="stDataFrame"],
+[data-testid="stTable"] {
+    background-color: #FFFFFF !important;
+    border: 1.5px solid #C8D9EE !important;
+    border-top: 3px solid #F5B700 !important;
+    border-radius: 9px !important;
+    overflow: hidden;
+}
+
+/* Expanders */
+[data-testid="stExpander"] {
+    background-color: #FFFFFF !important;
+    border: 1.5px solid #C8D9EE !important;
+    border-left: 4px solid #1D5FA7 !important;
+    border-radius: 8px !important;
+}
+
+[data-testid="stExpander"] summary {
+    color: #0F3D75 !important;
+    font-weight: 600 !important;
+}
+
+/* Botões padrão em azul com destaque amarelo no hover */
+.stButton > button,
+.stFormSubmitButton > button,
+.stDownloadButton > button {
+    background-color: #1D5FA7 !important;
+    color: #FFFFFF !important;
+    border: 1.5px solid #0F3D75 !important;
+    border-radius: 8px !important;
+    font-weight: 600 !important;
+    min-height: 38px;
+    padding: 0.38rem 0.78rem !important;
+    transition: all 0.15s ease;
+}
+
+.stButton > button:hover,
+.stFormSubmitButton > button:hover,
+.stDownloadButton > button:hover {
+    background-color: #0F3D75 !important;
+    color: #FFD166 !important;
+    border-color: #F5B700 !important;
+}
+
+/* Painel superior no desktop */
+.painel-nav-desktop-label {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #0F3D75;
+    border-left: 4px solid #F5B700;
+    padding-left: 8px;
+    margin-bottom: 4px;
+}
+
+/* Banner da grade inicial */
+.hub-banner {
+    background-color: #FFFFFF;
+    border: 1.5px solid #C8D9EE;
+    border-left: 5px solid #F5B700;
+    border-radius: 9px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+}
+
+.hub-banner h3 {
+    margin: 0;
+    color: #0F3D75;
+    font-size: 1.05rem;
+}
+
+.hub-banner p {
+    margin: 2px 0 0 0;
+    color: #3A4E66;
+    font-size: 0.84rem;
+}
+
+/* Abas com destaque azul e amarelo */
+.stTabs [data-baseweb="tab-list"] {
+    gap: 4px;
+    border-bottom: 2px solid #C8D9EE;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.stTabs [data-baseweb="tab"] {
+    background-color: #FFFFFF !important;
+    color: #0F3D75 !important;
+    border: 1px solid #C8D9EE !important;
+    border-bottom: none !important;
+    border-radius: 7px 7px 0 0 !important;
+    font-weight: 600 !important;
+    font-size: 0.83rem !important;
+    padding: 6px 11px !important;
+}
+
+.stTabs [aria-selected="true"] {
+    background-color: #0F3D75 !important;
+    color: #FFD166 !important;
+    border-bottom: 3px solid #F5B700 !important;
+}
+
+/* Cards de métricas */
+[data-testid="stMetric"] {
+    background-color: #FFFFFF !important;
+    border: 1px solid #C8D9EE !important;
+    border-top: 3px solid #F5B700 !important;
+    border-radius: 8px !important;
+    padding: 8px 12px !important;
+}
+
+[data-testid="stMetricLabel"] {
+    color: #0F3D75 !important;
+    font-weight: 700 !important;
+    font-size: 0.78rem !important;
+}
+
+[data-testid="stMetricValue"] {
+    color: #132238 !important;
+    font-size: 1.28rem !important;
+}
+
+.cockpit-box-title {
+    background-color: #FFFFFF;
+    border: 1px solid #C8D9EE;
+    border-left: 5px solid #F5B700;
+    color: #0F3D75;
+    padding: 7px 12px;
+    border-radius: 7px;
+    font-weight: 700;
+    font-size: 0.94rem;
+    margin-bottom: 8px;
+}
+
+.login-mobile-only {
+    display: none;
+}
+
+/* Ajustes exclusivos para mobile (<= 768px) */
+@media (max-width: 768px) {
+    .nav-desktop-only,
+    [data-testid="stSidebar"],
+    [data-testid="stSidebarNav"],
+    [data-testid="collapsedControl"] {
+        display: none !important;
+    }
+
+    .login-mobile-only {
+        display: block !important;
+    }
+
+    .block-container {
+        padding-top: 0.55rem !important;
+        padding-left: 0.6rem !important;
+        padding-right: 0.6rem !important;
+        padding-bottom: 1.2rem !important;
+        max-width: 100% !important;
+    }
+
+    .oficina-header {
+        padding: 9px 12px;
+        border-radius: 8px;
+        margin-bottom: 8px;
+    }
+
+    .oficina-header h1 {
+        font-size: 1.05rem;
+    }
+
+    .oficina-header span {
+        display: none;
+    }
+
+    .hub-banner {
+        padding: 8px 12px;
+        margin-bottom: 8px;
+    }
+
+    .hub-banner h3 {
+        font-size: 0.96rem;
+    }
+
+    .hub-banner p {
+        font-size: 0.78rem;
+    }
+
+    .stButton > button,
+    .stFormSubmitButton > button,
+    .stDownloadButton > button {
+        min-height: 44px;
+        font-size: 0.86rem !important;
+        border-radius: 8px !important;
+        padding: 0.35rem 0.55rem !important;
+    }
+
+    [data-testid="stMetric"] {
+        padding: 6px 8px !important;
+    }
+
+    [data-testid="stMetricValue"] {
+        font-size: 1.05rem !important;
+    }
+}
