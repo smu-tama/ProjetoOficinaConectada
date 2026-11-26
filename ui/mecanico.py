@@ -180,6 +180,11 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
                         st.error(
                             f"Já existe máquina com o código {codigo_num}!"
                         )
+                    elif abrir_passagem_agora and obter_passagem_ativa_maquina(str(codigo_num)) is not None:
+                        ativa_c = obter_passagem_ativa_maquina(str(codigo_num))
+                        st.error(
+                            f"A máquina {codigo_num} já possui a passagem #{ativa_c.get('ID_Passagem')} aberta ({ativa_c.get('Status')})."
+                        )
                     else:
                         data_hora_atual = agora_str()
                         nova_maq = {
@@ -245,10 +250,10 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
                 for _, r in df_filtrada.iterrows()
             ]
             maq_sel = st.selectbox("Selecione a Máquina:", opcoes_maq)
-            id_maq_sel = maq_sel.split(" — ")[0]
-            row_maq_sel = df_maq_exist[df_maq_exist["ID"] == id_maq_sel].iloc[
-                0
-            ]
+            id_maq_sel = str(maq_sel.split(" — ")[0]).strip()
+            row_maq_sel = df_maq_exist[
+                df_maq_exist["ID"].astype(str).str.strip() == id_maq_sel
+            ].iloc[0]
 
             exibir_galeria_imagens(
                 row_maq_sel.get("Fotos_Cadastro"),
@@ -263,9 +268,10 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
 
             passagem_ativa = obter_passagem_ativa_maquina(id_maq_sel)
             if passagem_ativa is not None:
-                st.warning(
-                    f"⚠️ Esta máquina já possui a passagem **#{passagem_ativa.get('ID_Passagem')}** em aberto "
-                    f"(*{passagem_ativa.get('Status')}*). Encerre essa passagem antes de abrir uma nova."
+                st.error(
+                    f"🚫 Passagem simultânea bloqueada: a máquina **{id_maq_sel}** já possui a passagem "
+                    f"**#{passagem_ativa.get('ID_Passagem')}** em aberto (*{passagem_ativa.get('Status')}*). "
+                    "Finalize ou recuse essa passagem antes de abrir uma nova."
                 )
             else:
                 fotos_nova_pass = st.file_uploader(
@@ -275,18 +281,23 @@ def _render_entrada_passagens(is_mobile: bool, logar_acao) -> None:
                     key="upload_fotos_nova_passagem",
                 )
                 if st.button("➕ Abrir Nova Passagem", use_container_width=True):
-                    ok_pass, msg_pass, id_pass = abrir_nova_passagem_com_fotos(
-                        id_maq_sel,
-                        serializar_imagens(fotos_nova_pass),
-                        logar_acao,
-                    )
-                    if not ok_pass:
-                        st.error(msg_pass)
-                    else:
-                        st.session_state.flash_sucesso = (
-                            f"Nova passagem #{id_pass} aberta para máquina {id_maq_sel}!"
+                    if obter_passagem_ativa_maquina(id_maq_sel) is not None:
+                        st.error(
+                            f"A máquina {id_maq_sel} já possui uma passagem ativa no momento."
                         )
-                        st.rerun()
+                    else:
+                        ok_pass, msg_pass, id_pass = abrir_nova_passagem_com_fotos(
+                            id_maq_sel,
+                            serializar_imagens(fotos_nova_pass),
+                            logar_acao,
+                        )
+                        if not ok_pass:
+                            st.error(msg_pass)
+                        else:
+                            st.session_state.flash_sucesso = (
+                                f"Nova passagem #{id_pass} aberta para máquina {id_maq_sel}!"
+                            )
+                            st.rerun()
 
 
 def _render_etiqueta_qr() -> None:

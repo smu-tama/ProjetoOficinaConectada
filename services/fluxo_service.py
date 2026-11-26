@@ -11,14 +11,29 @@ from repositories.oficina_repo import (
     salvar_tabela_df,
 )
 
-STATUS_PASSAGEM_ENCERRADA = {
-    "Entregue / Retirado",
-    "Orçamento Recusado",
+STATUS_ENCERRADOS_NORMALIZADOS = {
+    "entregue / retirado",
+    "entregue/retirado",
+    "entregue",
+    "retirado",
+    "orçamento recusado",
+    "orcamento recusado",
+    "recusado",
 }
+
+
+def _status_esta_encerrado(status_val: str | None) -> bool:
+    if not status_val:
+        return False
+    return str(status_val).strip().lower() in STATUS_ENCERRADOS_NORMALIZADOS
 
 
 def obter_passagem_ativa_maquina(id_maquina: str) -> dict | None:
     """Retorna a primeira passagem ainda em aberto para a máquina, ou None."""
+    alvo_id = str(id_maquina).strip()
+    if not alvo_id:
+        return None
+
     df_pass = carregar_tabela("passagens_oficina")
     if df_pass.empty:
         return None
@@ -27,14 +42,58 @@ def obter_passagem_ativa_maquina(id_maquina: str) -> dict | None:
     if col_id not in df_pass.columns:
         return None
 
-    ativas = df_pass[
-        (df_pass[col_id].astype(str) == str(id_maquina).strip())
-        & (~df_pass["Status"].isin(STATUS_PASSAGEM_ENCERRADA))
-    ]
-    if ativas.empty:
-        return None
+    for _, r in df_pass.iterrows():
+        if str(r.get(col_id, "")).strip() == alvo_id and not _status_esta_encerrado(
+            r.get("Status")
+        ):
+            return r.to_dict()
 
-    return ativas.iloc[0].to_dict()
+    return None
+
+
+def criar_passagem_unica(
+    id_maquina: str,
+    data_entrada: str | None = None,
+) -> tuple[bool, str, int | None]:
+    """Valida direto no SQLite e insere passagem apenas se não houver outra aberta."""
+    alvo_id = str(id_maquina).strip()
+    if not alvo_id:
+        return False, "ID da máquina inválido.", None
+
+    ativa = obter_passagem_ativa_maquina(alvo_id)
+    if ativa is not None:
+        id_aberta = ativa.get("ID_Passagem", "?")
+        st_aberta = ativa.get("Status", "Em andamento")
+        return (
+            False,
+            f"A máquina {alvo_id} já possui a passagem #{id_aberta} aberta ({st_aberta}). Encerre antes de abrir outra.",
+            None,
+        )
+
+    conn = get_connection()
+    cursor = conn.cursor()
+    try:
+        cursor.execute("PRAGMA table_info(passagens_oficina)")
+        cols = [row["name"] for row in cursor.fetchall()]
+        col_id_sql = "ID_Maquina" if "ID_Maquina" in cols else "ID"
+
+        cursor.execute(
+            f"SELECT ID_Passagem, Status FROM passagens_oficina WHERE CAST({col_id_sql} AS TEXT) = ?",
+            (alvo_id,),
+        )
+        for linha in cursor.fetchall():
+            if not _status_esta_encerrado(linha["Status"]):
+                return (
+                    False,
+                    f"A máquina {alvo_id} já possui a passagem #{linha['ID_Passagem']} aberta ({linha['Status']}).",
+                    None,
+                )
+    finally:
+        conn.close()
+
+    entrada_final = data_entrada or agora_str()
+    novo_id = inserir_passagem(alvo_id, data_entrada=entrada_final)
+    return True, entrada_final, int(novo_id)
 
 
 def cadastrar_cliente(nome: str, telefone_validado: str, logar_acao_fn) -> str:
@@ -69,10 +128,7 @@ def cadastrar_maquina_fluxo(
     abrir_passagem_agora: bool,
     logar_acao_fn,
 ) -> tuple[bool, str, int | None]:
-    """Cadastra máquina e opcionalmente já abre a primeira passagem.
-
-    Retorna (sucesso, mensagem_ou_codigo, id_passagem_ou_none).
-    """
+    """Cadastra máquina e opcionalmente já abre a primeira passagem."""
     codigo_num = (
         codigo_manual.strip()
         if codigo_manual and codigo_manual.strip()
@@ -114,7 +170,11 @@ def cadastrar_maquina_fluxo(
     )
 
     if abrir_passagem_agora:
-        id_pass = inserir_passagem(str(codigo_num), data_entrada=data_hora_atual)
+        ok_pass, msg_pass, id_pass = criar_passagem_unica(
+            str(codigo_num), data_entrada=data_hora_atual
+        )
+        if not ok_pass:
+            return False, msg_pass, None
         logar_acao_fn(
             "ENTRADA_MAQUINA_PASSAGEM",
             f"Máquina ID {codigo_num} ({modelo.strip()}) cadastrada para '{cliente_nome}' com passagem #{id_pass}.",
@@ -133,29 +193,18 @@ def abrir_nova_passagem_com_fotos(
     fotos_json: str,
     logar_acao_fn,
 ) -> tuple[bool, str, int | None]:
-    """Abre nova passagem apenas se não houver passagem em aberto para a máquina.
+    """Abre nova passagem apenas se não houver passagem em aberto para a máquina."""
+    ok_pass, info_pass, id_pass = criar_passagem_unica(str(id_maquina))
+    if not ok_pass or id_pass is None:
+        return False, info_pass, None
 
-    Retorna (sucesso, mensagem_ou_hora, id_passagem_ou_none).
-    """
-    passagem_aberta = obter_passagem_ativa_maquina(str(id_maquina))
-    if passagem_aberta is not None:
-        id_aberta = passagem_aberta.get("ID_Passagem", "?")
-        st_aberta = passagem_aberta.get("Status", "Em andamento")
-        return (
-            False,
-            f"A máquina {id_maquina} já possui a passagem #{id_aberta} em aberto ({st_aberta}).",
-            None,
-        )
-
-    hora_entrada = agora_str()
-    id_pass = inserir_passagem(str(id_maquina), data_entrada=hora_entrada)
     if fotos_json and fotos_json != "[]":
         atualizar_passagem_campos(id_pass, {"Fotos_Laudo": fotos_json})
     logar_acao_fn(
         "NOVA_PASSAGEM",
-        f"Nova passagem #{id_pass} aberta para máquina ID {id_maquina} em {hora_entrada}.",
+        f"Nova passagem #{id_pass} aberta para máquina ID {id_maquina} em {info_pass}.",
     )
-    return True, hora_entrada, id_pass
+    return True, info_pass, id_pass
 
 
 def redefinir_laudo_passagem(
