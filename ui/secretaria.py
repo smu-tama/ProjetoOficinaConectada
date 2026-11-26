@@ -1,6 +1,11 @@
+import pandas as pd
 import streamlit as st
 
-from repositories.oficina_repo import carregar_tabela, obter_visao_consolidada
+from repositories.oficina_repo import (
+    carregar_tabela,
+    obter_visao_consolidada,
+    salvar_tabela_df,
+)
 from services.fluxo_service import (
     calcular_custo_pecas_json,
     confirmar_saida_maquina,
@@ -8,8 +13,23 @@ from services.fluxo_service import (
     notificar_conclusao_cliente,
     precificar_passagem,
     processar_resposta_cliente,
+    repor_estoque_peca,
 )
 from ui.components import exibir_galeria_imagens, fmt_valor
+
+TELAS_SECRETARIA = [
+    "Cockpit",
+    "Almoxarifado",
+    "Máquinas e Passagens",
+    "Logs do Sistema",
+]
+
+ROTULOS_SECRETARIA = {
+    "Cockpit": "⚡ Cockpit & Orçamentos",
+    "Almoxarifado": "📦 Almoxarifado & Estoque",
+    "Máquinas e Passagens": "🛠️ Máquinas e Passagens",
+    "Logs do Sistema": "📜 Logs do Sistema",
+}
 
 STATUS_FILA_SECRETARIA = [
     "Aguardando Precificação (Falta Peças no Estoque)",
@@ -19,6 +39,34 @@ STATUS_FILA_SECRETARIA = [
     "Serviço Concluído (Aguardando Notificação ao Cliente)",
     "Serviço Concluído (Aguardando Retirada)",
 ]
+
+
+def _render_menu_lateral_secretaria() -> str:
+    """Renderiza os botões de navegação individual na barra lateral."""
+    if "tela_secretaria" not in st.session_state:
+        st.session_state.tela_secretaria = "Cockpit"
+
+    if st.session_state.tela_secretaria == "Início":
+        st.session_state.tela_secretaria = "Cockpit"
+
+    st.sidebar.markdown("### 🗂️ Telas da Secretaria")
+    for nome_tela in TELAS_SECRETARIA:
+        ativa = st.session_state.tela_secretaria == nome_tela
+        rotulo = (
+            f"🟡 {ROTULOS_SECRETARIA.get(nome_tela, nome_tela)}"
+            if ativa
+            else ROTULOS_SECRETARIA.get(nome_tela, nome_tela)
+        )
+        if st.sidebar.button(
+            rotulo,
+            key=f"sec_side_nav_{nome_tela}",
+            use_container_width=True,
+        ):
+            st.session_state.tela_secretaria = nome_tela
+            st.rerun()
+
+    st.sidebar.markdown("---")
+    return st.session_state.tela_secretaria
 
 
 def _render_kpi_card(
@@ -466,6 +514,281 @@ def _render_cockpit_desktop(df_pass_ativas, df_est, logar_acao) -> None:
                 )
 
 
+def _render_almoxarifado_secretaria(logar_acao) -> None:
+    st.markdown(
+        """
+        <div class="sec-topbar">
+            <div>
+                <p class="sec-topbar-title">Almoxarifado • Entrada de Peças, Edição e Cadastro</p>
+                <p class="sec-topbar-sub">Controle de estoque mínimo, reposição rápida e alteração de peças</p>
+            </div>
+            <span class="sec-pill-amarelo">Estoque</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    df_est = carregar_tabela("estoque").copy()
+
+    with st.container(border=True):
+        st.markdown(
+            '<div class="sec-panel-header"><p class="sec-panel-title">Peças Cadastradas</p></div>',
+            unsafe_allow_html=True,
+        )
+        if df_est.empty:
+            st.info("Nenhuma peça cadastrada no estoque ainda.")
+        else:
+            st.dataframe(df_est, use_container_width=True, hide_index=True)
+
+    col_ent, col_edit = st.columns(2)
+
+    with col_ent:
+        with st.container(border=True):
+            st.markdown(
+                '<div class="sec-panel-header"><p class="sec-panel-title">Dar Entrada / Repor Estoque</p></div>',
+                unsafe_allow_html=True,
+            )
+            if df_est.empty:
+                st.info("Cadastre uma peça primeiro ao lado.")
+            else:
+                peca_entrada = st.selectbox(
+                    "Selecione a peça:",
+                    df_est["Nome"].tolist(),
+                    key="alm_sel_entrada",
+                )
+                qtd_entrada = st.number_input(
+                    "Quantidade para adicionar:",
+                    min_value=1,
+                    value=1,
+                    step=1,
+                    key="alm_qtd_entrada",
+                )
+                if st.button(
+                    "➕ Registrar Entrada no Estoque",
+                    key="alm_btn_entrada",
+                    use_container_width=True,
+                ):
+                    if callable(repor_estoque_peca) and callable(logar_acao):
+                        repor_estoque_peca(
+                            peca_entrada, int(qtd_entrada), logar_acao
+                        )
+                    else:
+                        idx = df_est[df_est["Nome"] == peca_entrada].index[0]
+                        df_est.loc[idx, "Quantidade"] = (
+                            int(df_est.loc[idx, "Quantidade"])
+                            + int(qtd_entrada)
+                        )
+                        salvar_tabela_df(df_est, "estoque")
+                        if callable(logar_acao):
+                            logar_acao(
+                                "REPOSICAO_ESTOQUE",
+                                f"Adicionadas {int(qtd_entrada)} unidade(s) de '{peca_entrada}'.",
+                            )
+                    st.session_state.flash_sucesso = (
+                        f"+{int(qtd_entrada)} unidade(s) adicionadas em '{peca_entrada}'!"
+                    )
+                    st.rerun()
+
+    with col_edit:
+        with st.container(border=True):
+            st.markdown(
+                '<div class="sec-panel-header"><p class="sec-panel-title">Alterar Dados da Peça</p></div>',
+                unsafe_allow_html=True,
+            )
+            if df_est.empty:
+                st.info("Nenhuma peça disponível para alterar.")
+            else:
+                peca_alterar = st.selectbox(
+                    "Peça para alterar:",
+                    df_est["Nome"].tolist(),
+                    key="alm_sel_alterar",
+                )
+                idx_alt = df_est[df_est["Nome"] == peca_alterar].index[0]
+                row_alt = df_est.loc[idx_alt]
+
+                with st.form("form_alterar_peca_sec"):
+                    novo_nome = st.text_input(
+                        "Nome da Peça:", value=str(row_alt["Nome"])
+                    )
+                    nova_qtd = st.number_input(
+                        "Quantidade Atual:",
+                        min_value=0,
+                        value=int(row_alt.get("Quantidade", 0) or 0),
+                        step=1,
+                    )
+                    novo_min = st.number_input(
+                        "Estoque Mínimo:",
+                        min_value=0,
+                        value=int(row_alt.get("Minimo", 0) or 0),
+                        step=1,
+                    )
+                    novo_preco = st.number_input(
+                        "Preço Unitário (R$):",
+                        min_value=0.0,
+                        value=float(row_alt.get("Preco_Unitario", 0.0) or 0.0),
+                        step=1.0,
+                    )
+                    if st.form_submit_button(
+                        "💾 Salvar Alterações da Peça",
+                        use_container_width=True,
+                    ):
+                        if not novo_nome.strip():
+                            st.error("O nome da peça não pode ficar vazio.")
+                        else:
+                            df_est.loc[idx_alt, "Nome"] = novo_nome.strip()
+                            df_est.loc[idx_alt, "Quantidade"] = int(nova_qtd)
+                            df_est.loc[idx_alt, "Minimo"] = int(novo_min)
+                            df_est.loc[idx_alt, "Preco_Unitario"] = float(
+                                novo_preco
+                            )
+                            salvar_tabela_df(df_est, "estoque")
+                            if callable(logar_acao):
+                                logar_acao(
+                                    "ALTERAR_PECA",
+                                    f"Peça '{novo_nome.strip()}' atualizada (Qtd: {int(nova_qtd)}, Mín: {int(novo_min)}, Preço: {float(novo_preco):.2f}).",
+                                )
+                            st.session_state.flash_sucesso = (
+                                f"Peça '{novo_nome.strip()}' atualizada!"
+                            )
+                            st.rerun()
+
+    with st.container(border=True):
+        st.markdown(
+            '<div class="sec-panel-header"><p class="sec-panel-title">Cadastrar Nova Peça</p></div>',
+            unsafe_allow_html=True,
+        )
+        with st.form("form_nova_peca_sec", clear_on_submit=True):
+            c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+            n_nome = c1.text_input("Nome da Nova Peça")
+            n_qtd = c2.number_input("Qtd Inicial", min_value=0, value=1, step=1)
+            n_min = c3.number_input("Mínimo", min_value=0, value=1, step=1)
+            n_preco = c4.number_input(
+                "Preço Unit. (R$)", min_value=0.0, value=10.0, step=1.0
+            )
+            if st.form_submit_button(
+                "➕ Cadastrar Peça", use_container_width=True
+            ):
+                if not n_nome.strip():
+                    st.error("Informe o nome da peça.")
+                elif not df_est.empty and n_nome.strip().lower() in (
+                    df_est["Nome"].astype(str).str.strip().str.lower().values
+                ):
+                    st.error("Já existe uma peça com esse nome.")
+                else:
+                    prox_id = f"PEC-{len(df_est) + 1:03d}"
+                    if "ID_Peca" in df_est.columns and not df_est.empty:
+                        prox_id = f"PEC-{len(df_est) + 1:03d}"
+                    nova_linha = {
+                        "ID_Peca": prox_id,
+                        "Nome": n_nome.strip(),
+                        "Quantidade": int(n_qtd),
+                        "Minimo": int(n_min),
+                        "Preco_Unitario": float(n_preco),
+                    }
+                    colunas_existentes = (
+                        list(df_est.columns)
+                        if not df_est.empty
+                        else list(nova_linha.keys())
+                    )
+                    linha_filtrada = {
+                        k: v for k, v in nova_linha.items() if k in colunas_existentes
+                    }
+                    df_att = pd.concat(
+                        [df_est, pd.DataFrame([linha_filtrada])],
+                        ignore_index=True,
+                    )
+                    salvar_tabela_df(df_att, "estoque")
+                    if callable(logar_acao):
+                        logar_acao(
+                            "CADASTRO_PECA",
+                            f"Nova peça '{n_nome.strip()}' cadastrada (Qtd: {int(n_qtd)}).",
+                        )
+                    st.session_state.flash_sucesso = (
+                        f"Peça '{n_nome.strip()}' cadastrada!"
+                    )
+                    st.rerun()
+
+
+def _render_maquinas_passagens_secretaria(df_pass_ativas) -> None:
+    st.markdown(
+        """
+        <div class="sec-topbar">
+            <div>
+                <p class="sec-topbar-title">Máquinas e Passagens • Visão Consolidada</p>
+                <p class="sec-topbar-sub">Consulta geral de equipamentos, clientes, status e valores</p>
+            </div>
+            <span class="sec-pill-amarelo">Operação</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.container(border=True):
+        if df_pass_ativas is None or df_pass_ativas.empty:
+            st.info("Nenhum registro encontrado.")
+            return
+
+        busca = st.text_input(
+            "Buscar por ID da máquina, cliente, modelo ou status:",
+            key="sec_busca_passagens",
+        )
+        df_show = df_pass_ativas.copy()
+        if busca and busca.strip():
+            termo = busca.strip().lower()
+            mascara = df_show.apply(
+                lambda r: termo in " ".join(str(v) for v in r.values).lower(),
+                axis=1,
+            )
+            df_show = df_show[mascara]
+
+        st.dataframe(df_show, use_container_width=True, hide_index=True)
+
+
+def _render_logs_secretaria() -> None:
+    st.markdown(
+        """
+        <div class="sec-topbar">
+            <div>
+                <p class="sec-topbar-title">Logs do Sistema • Auditoria de Ações</p>
+                <p class="sec-topbar-sub">Histórico de logins, orçamentos, aprovações, saídas e estoque</p>
+            </div>
+            <span class="sec-pill-amarelo">Auditoria</span>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    with st.container(border=True):
+        try:
+            df_logs = carregar_tabela("logs")
+        except Exception:
+            df_logs = pd.DataFrame()
+
+        if df_logs is None or df_logs.empty:
+            st.info("Nenhum log registrado até o momento.")
+            return
+
+        filtro_log = st.text_input(
+            "Filtrar logs por usuário, ação ou detalhes:",
+            key="sec_filtro_logs",
+        )
+        df_l = df_logs.iloc[::-1].copy()
+        if filtro_log and filtro_log.strip():
+            termo = filtro_log.strip().lower()
+            mascara = df_l.apply(
+                lambda r: termo in " ".join(str(v) for v in r.values).lower(),
+                axis=1,
+            )
+            df_l = df_l[mascara]
+
+        st.dataframe(
+            df_l.head(200),
+            use_container_width=True,
+            hide_index=True,
+            height=420,
+        )
+
+
 def renderizar_cockpit_secretaria(
     df_pass_ativas, df_est, is_mobile: bool, logar_acao
 ) -> None:
@@ -483,21 +806,24 @@ def renderizar_visao_secretaria(
     render_nav=None,
     **kwargs,
 ) -> None:
-    """Renderiza a visão principal da Secretaria compatível com a chamada do app.py."""
-    if "tela_secretaria" not in st.session_state:
-        st.session_state.tela_secretaria = "Início"
-
-    if callable(render_nav):
-        render_nav()
+    """Renderiza a visão da Secretaria com navegação lateral entre telas."""
+    tela_atual = _render_menu_lateral_secretaria()
 
     dados_passagens = (
         df_pass_ativas if df_pass_ativas is not None else obter_visao_consolidada()
     )
     dados_estoque = df_est if df_est is not None else carregar_tabela("estoque")
 
-    renderizar_cockpit_secretaria(
-        df_pass_ativas=dados_passagens,
-        df_est=dados_estoque,
-        is_mobile=is_mobile,
-        logar_acao=logar_acao,
-    )
+    if tela_atual == "Almoxarifado":
+        _render_almoxarifado_secretaria(logar_acao=logar_acao)
+    elif tela_atual == "Máquinas e Passagens":
+        _render_maquinas_passagens_secretaria(dados_passagens)
+    elif tela_atual == "Logs do Sistema":
+        _render_logs_secretaria()
+    else:
+        renderizar_cockpit_secretaria(
+            df_pass_ativas=dados_passagens,
+            df_est=dados_estoque,
+            is_mobile=is_mobile,
+            logar_acao=logar_acao,
+        )
